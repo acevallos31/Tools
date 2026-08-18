@@ -22,7 +22,7 @@
             border-radius: 8px;
             padding: 24px;
             width: 100%;
-            max-width: 1150px;
+            max-width: 1450px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.4);
         }
         h3 { margin-top: 0; margin-bottom: 6px; font-size: 20px; font-weight: 600; color: #89b4fa; }
@@ -51,7 +51,7 @@
         }
 
         .table-container {
-            max-height: 420px;
+            height: clamp(280px, calc(100vh - 260px), 700px);
             overflow-x: auto;
             overflow-y: auto;
             margin-bottom: 16px;
@@ -178,6 +178,33 @@
             flex-wrap: wrap;
         }
 
+        .replace-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background-color: #2b2b36;
+            padding: 12px 14px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .replace-bar label {
+            color: #b3b3c2;
+            font-size: 12px;
+        }
+
+        .replace-bar input,
+        .replace-bar select {
+            background: #363646;
+            border: 1px solid #555;
+            color: white;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            min-width: 150px;
+        }
+
         #status {
             margin-top: 16px;
             font-size: 13px;
@@ -209,11 +236,20 @@
         </div>
     </div>
 
+    <div class="replace-bar">
+        <label for="replaceColumn">Reemplazar en:</label>
+        <select id="replaceColumn" aria-label="Columna donde reemplazar"></select>
+        <input type="text" id="replaceSearch" placeholder="Buscar valor o patrón">
+        <input type="text" id="replaceValue" placeholder="Reemplazar por">
+        <button class="btn btn-secondary" onclick="reemplazarEnColumna()">🔁 Reemplazar</button>
+    </div>
+
     <!-- Tabla de Datos -->
     <div class="table-container" id="tableContainer">
         <table id="extensionsTable">
             <thead>
                 <tr id="headerRow">
+                    <th style="width: 60px; text-align: center;">Acción</th>
                     <th style="width: 110px; text-align: center;">
                         <select class="select-mode" onchange="seleccionarPorModo(this.value)">
                             <option value="" disabled selected>Marcar...</option>
@@ -224,7 +260,6 @@
                         </select>
                     </th>
                     <th id="originHeader" style="width: 80px;">Origen</th>
-                    <th style="width: 60px; text-align: center;">Acción</th>
                 </tr>
             </thead>
             <tbody id="tableBody"></tbody>
@@ -371,6 +406,27 @@ function obtenerColumnasVisibles() {
         .map(elemento => elemento.columna);
 
     return columnasOrdenadas;
+}
+
+function actualizarSelectorReemplazo() {
+    const selector = document.getElementById('replaceColumn');
+    const columnasDisponibles = columnasCSV.length > 0 ? columnasCSV : ISSABEL_COLUMNS.map((nombre, indice) => ({
+        indice,
+        normalizado: normalizarEncabezado(nombre),
+        etiqueta: nombre
+    }));
+    const valorActual = selector.value;
+
+    selector.innerHTML = columnasDisponibles
+        .map(columna => `<option value="${columna.indice}">${escaparHTML(columna.etiqueta)}</option>`)
+        .join('');
+
+    if (columnasDisponibles.some(columna => String(columna.indice) === valorActual)) {
+        selector.value = valorActual;
+    } else {
+        const indiceExtension = columnasDisponibles.find(columna => columna.normalizado === 'user extension');
+        selector.value = String(indiceExtension ? indiceExtension.indice : columnasDisponibles[0].indice);
+    }
 }
 
 function crearValoresExtension(extension) {
@@ -572,13 +628,14 @@ function renderTabla() {
     const columnasVisibles = obtenerColumnasVisibles();
     tbody.innerHTML = '';
     headerRow.querySelectorAll('.dynamic-csv-header').forEach(header => header.remove());
-    const actionHeader = headerRow.lastElementChild;
+    actualizarSelectorReemplazo();
+    const dynamicHeaderAnchor = document.getElementById('originHeader').nextElementSibling;
 
     columnasVisibles.forEach(columna => {
         const th = document.createElement('th');
         th.className = 'dynamic-csv-header';
         th.textContent = columna.etiqueta;
-        headerRow.insertBefore(th, actionHeader);
+        headerRow.insertBefore(th, dynamicHeaderAnchor);
     });
 
     extensionesData.forEach((item, index) => {
@@ -611,13 +668,13 @@ function renderTabla() {
 
         tr.innerHTML = `
             <td style="text-align: center;">
+                <button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" title="Eliminar extensión" aria-label="Eliminar extensión" onclick="eliminarFila(${index})">X</button>
+            </td>
+            <td style="text-align: center;">
                 <input type="checkbox" ${item.selected ? 'checked' : ''} onchange="toggleSelect(${index}, this.checked)">
             </td>
             <td>${tagOrigen}</td>
             ${celdasCSV}
-            <td style="text-align: center;">
-                <button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="eliminarFila(${index})">X</button>
-            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -649,6 +706,60 @@ function actualizarDato(index, campo, valor) {
     if (nombreColumna === 'secret') item.secret = valorLimpio;
     if (nombreColumna === 'tech') item.tech = valorLimpio.toLowerCase() === 'iax2' ? 'iax' : valorLimpio.toLowerCase();
     if (nombreColumna === 'context') item.context = valorLimpio;
+}
+
+function crearPatronReemplazo(busqueda, reemplazo) {
+    if (!busqueda.includes('X')) {
+        const textoEscapado = busqueda.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const esPalabraCompleta = /^[A-Za-z0-9_]+$/.test(busqueda);
+        const expresion = esPalabraCompleta ? `\\b${textoEscapado}\\b` : textoEscapado;
+        return {
+            patron: new RegExp(expresion, 'i'),
+            reemplazo
+        };
+    }
+
+    let indiceCaptura = 0;
+    const patron = busqueda.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/X/g, () => {
+        indiceCaptura++;
+        return '(.)';
+    });
+    let indiceReemplazo = 0;
+    const reemplazoConservandoX = reemplazo.replace(/X/g, () => {
+        indiceReemplazo++;
+        return indiceReemplazo <= indiceCaptura ? `$${indiceReemplazo}` : 'X';
+    });
+
+    return { patron: new RegExp(patron, 'gi'), reemplazo: reemplazoConservandoX };
+}
+
+function reemplazarEnColumna() {
+    const selector = document.getElementById('replaceColumn');
+    const busqueda = document.getElementById('replaceSearch').value;
+    const reemplazo = document.getElementById('replaceValue').value;
+    const indiceColumna = Number(selector.value);
+
+    if (!busqueda) {
+        mostrarStatus('Escribe un valor o patrón para buscar.', true);
+        return;
+    }
+
+    const { patron, reemplazo: reemplazoRegex } = crearPatronReemplazo(busqueda, reemplazo);
+    let cambios = 0;
+
+    extensionesData.forEach((item, index) => {
+        if (!item.valores) item.valores = crearValoresExtension(item);
+        const valorAnterior = String(item.valores[indiceColumna] ?? '');
+        const valorNuevo = valorAnterior.replace(patron, reemplazoRegex);
+
+        if (valorNuevo !== valorAnterior) {
+            actualizarDato(index, indiceColumna, valorNuevo);
+            cambios++;
+        }
+    });
+
+    renderTabla();
+    mostrarStatus(`Se reemplazaron ${cambios} valores en la columna seleccionada.`, false);
 }
 
 function generarClaveFila(index) {
