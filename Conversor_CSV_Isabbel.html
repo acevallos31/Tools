@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Avanzado de Extensiones Issabel PBX</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            background-color: #2b2b36;
+            color: #ffffff;
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .panel {
+            background-color: #363646;
+            border-radius: 8px;
+            padding: 24px;
+            width: 100%;
+            max-width: 1150px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+        h3 { margin-top: 0; margin-bottom: 6px; font-size: 20px; font-weight: 600; color: #89b4fa; }
+        p { font-size: 13px; color: #b3b3c2; margin-bottom: 20px; line-height: 1.4; }
+        
+        .controls-bar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #2b2b36;
+            padding: 14px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .search-box {
+            background: #363646;
+            border: 1px solid #555;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            width: 180px;
+        }
+
+        .table-container {
+            max-height: 420px;
+            overflow-x: auto;
+            overflow-y: auto;
+            margin-bottom: 16px;
+            border: 1px solid #4a4a5a;
+            border-radius: 6px;
+        }
+        table {
+            width: 100%;
+            min-width: max-content;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+        th {
+            background-color: #2b2b36;
+            color: #89b4fa;
+            padding: 10px 12px;
+            position: sticky;
+            top: 0;
+            border-bottom: 1px solid #4a4a5a;
+            z-index: 10;
+            white-space: nowrap;
+        }
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #3d3d4e;
+            vertical-align: middle;
+        }
+        .csv-cell {
+            min-width: 150px;
+        }
+        .csv-input {
+            min-width: 135px;
+        }
+        .secret-cell {
+            min-width: 330px;
+        }
+        .secret-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .secret-input {
+            min-width: 270px;
+        }
+        .regenerate-secret {
+            flex: 0 0 auto;
+            cursor: pointer;
+            background: #4a4a5a;
+            border: none;
+            color: #fff;
+            border-radius: 3px;
+            padding: 5px 7px;
+        }
+        .regenerate-secret:hover {
+            background: #5b5b70;
+        }
+        tr.row-csv { background-color: rgba(255, 193, 7, 0.05); }
+        tr.row-new { background-color: rgba(25, 135, 84, 0.05); }
+
+        td input[type="text"] {
+            background: #2b2b36;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 5px 8px;
+            border-radius: 4px;
+            width: 100%;
+            font-size: 12px;
+            font-family: monospace; /* Para facilitar lectura de claves de 32 chars */
+        }
+
+        .badge {
+            font-size: 10px;
+            font-weight: bold;
+            padding: 3px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+        .badge-csv { background-color: #ffc10725; color: #ffc107; border: 1px solid #ffc107; }
+        .badge-new { background-color: #19875425; color: #75b798; border: 1px solid #198754; }
+        
+        .btn {
+            border: none;
+            padding: 9px 14px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background-color: #0d6efd; color: white; }
+        .btn-primary:hover { background-color: #0b5ed7; }
+        .btn-success { background-color: #198754; color: white; }
+        .btn-success:hover { background-color: #157347; }
+        .btn-info { background-color: #0dcaf0; color: #000; font-weight: 600; }
+        .btn-info:hover { background-color: #31d2f2; }
+        .btn-warning { background-color: #ffc107; color: #000; font-weight: 600; }
+        .btn-warning:hover { background-color: #e0a800; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-danger:hover { background-color: #bb2d3b; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn-secondary:hover { background-color: #5c636a; }
+
+        select.select-mode {
+            background-color: #2b2b36;
+            color: #89b4fa;
+            border: 1px solid #4a4a5a;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        
+        .actions-wrapper {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        #status {
+            margin-top: 16px;
+            font-size: 13px;
+            display: none;
+            padding: 10px 14px;
+            border-radius: 4px;
+        }
+        .status-success { background-color: #19875420; border: 1px solid #198754; color: #75b798; }
+        .status-error { background-color: #dc354520; border: 1px solid #dc3545; color: #ea868f; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h3>Gestor Avanzado de Extensiones Issabel PBX</h3>
+    <p>Inspecciona, genera contraseñas en formato Hexadecimal (32 chars) e importa datos sin errores en la BD.</p>
+
+    <!-- Barra de Control -->
+    <div class="controls-bar">
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <input type="file" id="csvFile" accept=".csv" />
+            <button class="btn btn-primary" onclick="cargarCSV()">Cargar CSV</button>
+            <button class="btn btn-info" onclick="agregarExtensionIndividual()">➕ Nueva Extensión</button>
+            <button class="btn btn-info" style="background-color: #6f42c1; color: white;" onclick="agregarEnLote()">⚡ Agregar en Lote</button>
+        </div>
+        <div id="filterWrapper" style="display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="searchInput" class="search-box" placeholder="Buscar..." onkeyup="filtrarTabla()">
+            <button class="btn btn-warning" onclick="generarClavesTodas()">🔑 Generar Claves Issabel</button>
+        </div>
+    </div>
+
+    <!-- Tabla de Datos -->
+    <div class="table-container" id="tableContainer">
+        <table id="extensionsTable">
+            <thead>
+                <tr id="headerRow">
+                    <th style="width: 110px; text-align: center;">
+                        <select class="select-mode" onchange="seleccionarPorModo(this.value)">
+                            <option value="" disabled selected>Marcar...</option>
+                            <option value="csv">Solo del CSV</option>
+                            <option value="new">Solo Nuevas</option>
+                            <option value="all">Todas</option>
+                            <option value="none">Desmarcar</option>
+                        </select>
+                    </th>
+                    <th id="originHeader" style="width: 80px;">Origen</th>
+                    <th style="width: 60px; text-align: center;">Acción</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Acciones Inferiores -->
+    <div class="actions-wrapper" id="actionsWrapper">
+        <div>
+            <button class="btn btn-danger" onclick="eliminarSeleccionadas()">🗑️ Eliminar Seleccionadas</button>
+            <span id="counterInfo" style="font-size: 12px; color: #a0a0b0; margin-left: 10px;">Total: 0</span>
+        </div>
+        <div>
+            <button class="btn btn-success" onclick="exportarCSV()">Descargar CSV para Issabel</button>
+        </div>
+    </div>
+
+    <div id="status"></div>
+</div>
+
+<script>
+const ISSABEL_COLUMNS = [
+    "Display Name", "User Extension", "Direct DID", "Outbound CID", "Call Waiting", 
+    "Secret", "Voicemail Status", "Voicemail Password", "VM Email Address", "VM Pager Email Address", 
+    "VM Options", "VM Email Attachment", "VM Play CID", "VM Play Envelope", "VM Delete Hearing", 
+    "VM Context", "Recording In External", "Recording In Internal", "Recording Out External", 
+    "Recording Out Internal", "Recording Ondemand", "Recording Priority", "Context", "Tech", 
+    "Call Recording", "Record Incoming", "Record Outgoing", "Intercom", "Conferencing"
+];
+
+let extensionesData = [];
+let columnasCSV = [];
+
+// Patrón EXACTO de Issabel/FreePBX (32 caracteres hexadecimales en minúscula)
+function generarSecretIssabel() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function parseCSV(contenido, delimiter) {
+    const records = [];
+    let record = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < contenido.length; i++) {
+        const char = contenido[i];
+
+        if (char === '"') {
+            if (inQuotes && contenido[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === delimiter && !inQuotes) {
+            record.push(current.trim());
+            current = '';
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+            if (char === '\r' && contenido[i + 1] === '\n') i++;
+            record.push(current.trim());
+            records.push(record);
+            record = [];
+        } else {
+            current += char;
+        }
+    }
+
+    if (current !== '' || record.length > 0) {
+        record.push(current.trim());
+        records.push(record);
+    }
+
+    return records;
+}
+
+function normalizarEncabezado(valor) {
+    return String(valor ?? '')
+        .replace(/^\uFEFF/, '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+}
+
+function detectarDelimitador(linea) {
+    let comas = 0;
+    let puntoComas = 0;
+    let dentroDeComillas = false;
+
+    for (const caracter of linea) {
+        if (caracter === '"') dentroDeComillas = !dentroDeComillas;
+        if (!dentroDeComillas && caracter === ',') comas++;
+        if (!dentroDeComillas && caracter === ';') puntoComas++;
+    }
+
+    return puntoComas > comas ? ';' : ',';
+}
+
+function escaparHTML(valor) {
+    return String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function escaparCSV(valor) {
+    const texto = String(valor ?? '');
+    return /[",\r\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+}
+
+function obtenerIndiceColumna(nombre) {
+    const encabezado = normalizarEncabezado(nombre);
+    return columnasCSV.findIndex(columna => columna.normalizado === encabezado);
+}
+
+function asegurarColumnasPorDefecto() {
+    if (columnasCSV.length > 0) return;
+
+    columnasCSV = ISSABEL_COLUMNS.map((nombre, indice) => ({
+        indice,
+        normalizado: normalizarEncabezado(nombre),
+        etiqueta: nombre
+    }));
+}
+
+function obtenerColumnasVisibles() {
+    const prioridad = {
+        'user extension': 0,
+        'display name': 1,
+        'secret': 2,
+        'tech': 3,
+        'context': 4
+    };
+    const columnasOrdenadas = columnasCSV
+        .map((columna, posicionOriginal) => ({ columna, posicionOriginal }))
+        .sort((a, b) => {
+            const prioridadA = prioridad[a.columna.normalizado] ?? 10;
+            const prioridadB = prioridad[b.columna.normalizado] ?? 10;
+            return prioridadA - prioridadB || a.posicionOriginal - b.posicionOriginal;
+        })
+        .map(elemento => elemento.columna);
+
+    return columnasOrdenadas;
+}
+
+function crearValoresExtension(extension) {
+    const valores = Array(columnasCSV.length).fill('');
+    const valoresPorNombre = {
+        'display name': extension.name,
+        'user extension': extension.ext,
+        'secret': extension.secret,
+        'tech': extension.tech,
+        'context': extension.context,
+        'call waiting': 'ENABLED',
+        'voicemail status': 'disable',
+        'vm context': 'default'
+    };
+
+    columnasCSV.forEach((columna, index) => {
+        if (Object.prototype.hasOwnProperty.call(valoresPorNombre, columna.normalizado)) {
+            valores[index] = valoresPorNombre[columna.normalizado];
+        }
+    });
+    return valores;
+}
+
+function obtenerValorExportacion(item, nombre) {
+    const indice = obtenerIndiceColumna(nombre);
+    if (indice !== -1 && item.valores) return item.valores[indice] || '';
+
+    if (nombre === 'Display Name') return item.name;
+    if (nombre === 'User Extension') return item.ext;
+    if (nombre === 'Secret') return item.secret;
+    if (nombre === 'Tech') return item.tech;
+    if (nombre === 'Context') return item.context || 'from-internal';
+    if (nombre === 'Call Waiting') return 'ENABLED';
+    if (nombre === 'Voicemail Status') return 'disable';
+    if (nombre === 'VM Context') return 'default';
+    return '';
+}
+
+function cargarCSV() {
+    const fileInput = document.getElementById('csvFile');
+    if (!fileInput.files.length) {
+        mostrarStatus("Selecciona un archivo CSV.", true);
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        let contenido = e.target.result;
+
+        if (contenido.charCodeAt(0) === 0xFEFF) {
+            contenido = contenido.substring(1);
+        }
+
+        const primeraLinea = contenido.split(/\r\n|\n/, 1)[0];
+        if (!primeraLinea.trim()) {
+            mostrarStatus("El archivo está vacío.", true);
+            return;
+        }
+
+        const delimitador = detectarDelimitador(primeraLinea);
+        const registros = parseCSV(contenido, delimitador);
+        const encabezadosOriginales = registros[0] || [];
+        const headers = encabezadosOriginales.map(normalizarEncabezado);
+        columnasCSV = headers.map((normalizado, index) => ({
+            indice: index,
+            normalizado,
+            etiqueta: String(encabezadosOriginales[index] || `Campo ${index + 1}`).trim()
+        }));
+
+        let idxExt = headers.findIndex(h => h === 'user extension');
+        let idxName = headers.findIndex(h => h === 'display name');
+        let idxSecret = headers.findIndex(h => h === 'secret');
+        let idxTech = headers.findIndex(h => h === 'tech');
+        let idxContext = headers.findIndex(h => h === 'context');
+
+        if (idxExt === -1) idxExt = headers.findIndex(h => h.includes('extension'));
+        if (idxName === -1) idxName = headers.findIndex(h => h === 'name');
+        if (idxSecret === -1) idxSecret = headers.findIndex(h => h.includes('secret') || h.includes('password'));
+        if (idxTech === -1) idxTech = headers.findIndex(h => h.includes('tech'));
+
+        if (idxExt === -1 || idxName === -1) {
+            mostrarStatus("El CSV no contiene las columnas necesarias: User Extension y Display Name.", true);
+            return;
+        }
+
+        extensionesData = [];
+
+        for (let i = 1; i < registros.length; i++) {
+            const cols = registros[i];
+            if (cols.length < 2) continue;
+
+            const extVal = (cols[idxExt] || cols[0] || '').trim();
+            if (!extVal) continue;
+            const nameVal = (cols[idxName] || `Extension ${extVal}`).trim();
+            const secretVal = (idxSecret !== -1 && cols[idxSecret]) ? cols[idxSecret].trim() : generarSecretIssabel();
+            const techVal = (idxTech !== -1 && cols[idxTech]) ? cols[idxTech].toLowerCase().trim() : 'sip';
+            const contextVal = (idxContext !== -1 && cols[idxContext]) ? cols[idxContext].trim() : 'from-internal';
+
+            extensionesData.push({
+                selected: false,
+                isOriginal: true,
+                ext: extVal,
+                name: nameVal,
+                secret: secretVal,
+                tech: techVal === 'iax2' ? 'iax' : (techVal === 'iax' ? 'iax' : 'sip'),
+                context: contextVal,
+                valores: columnasCSV.map(columna => cols[columna.indice] || '')
+            });
+        }
+
+        renderTabla();
+        mostrarStatus(`Se cargaron ${extensionesData.length} extensiones del archivo original.`, false);
+    };
+
+    reader.readAsText(fileInput.files[0], 'UTF-8');
+}
+
+function obtenerSiguienteExt() {
+    if (extensionesData.length === 0) return '5000';
+    let maxExt = 0;
+    extensionesData.forEach(item => {
+        const ext = String(item.ext).trim();
+        const num = Number(ext);
+        if (/^\d+$/.test(ext) && num > maxExt) {
+            maxExt = num;
+        }
+    });
+    return maxExt > 0 ? (maxExt + 1).toString() : '5000';
+}
+
+function agregarExtensionIndividual() {
+    asegurarColumnasPorDefecto();
+    let nuevaExt = obtenerSiguienteExt();
+    extensionesData.push({
+        selected: false,
+        isOriginal: false,
+        ext: nuevaExt,
+        name: `Usuario ${nuevaExt}`,
+        secret: generarSecretIssabel(),
+        tech: 'sip',
+        context: 'from-internal'
+    });
+    renderTabla();
+    mostrarStatus(`Se agregó la nueva extensión ${nuevaExt}.`, false);
+}
+
+function agregarEnLote() {
+    asegurarColumnasPorDefecto();
+    let extInicio = prompt("Extensión de inicio:", obtenerSiguienteExt());
+    if (!extInicio) return;
+    
+    let cantidadStr = prompt("¿Cuántas extensiones deseas crear?", "5");
+    if (!cantidadStr) return;
+
+    const inicioTexto = extInicio.trim();
+    const cantidadTexto = cantidadStr.trim();
+    const inicio = Number(inicioTexto);
+    const cantidad = Number(cantidadTexto);
+
+    if (!/^\d+$/.test(inicioTexto) || !/^\d+$/.test(cantidadTexto) || inicio < 1 || cantidad < 1 || cantidad > 1000) {
+        mostrarStatus("Valores inválidos ingresados.", true);
+        return;
+    }
+
+    const extensionesExistentes = new Set(extensionesData.map(item => String(item.ext).trim()));
+    const extensionesNuevas = [];
+
+    for (let i = 0; i < cantidad; i++) {
+        let num = (inicio + i).toString();
+        if (extensionesExistentes.has(num)) {
+            mostrarStatus(`La extensión ${num} ya existe en la tabla.`, true);
+            return;
+        }
+        extensionesExistentes.add(num);
+        extensionesNuevas.push({
+            selected: false,
+            isOriginal: false,
+            ext: num,
+            name: `Usuario ${num}`,
+            secret: generarSecretIssabel(),
+            tech: 'sip',
+            context: 'from-internal'
+        });
+    }
+
+    extensionesNuevas.forEach(extension => {
+        extensionesData.push({
+            ...extension
+        });
+    });
+
+    renderTabla();
+    mostrarStatus(`Se agregaron ${cantidad} extensiones nuevas en lote.`, false);
+}
+
+function renderTabla() {
+    const tbody = document.getElementById('tableBody');
+    const headerRow = document.getElementById('headerRow');
+    const columnasVisibles = obtenerColumnasVisibles();
+    tbody.innerHTML = '';
+    headerRow.querySelectorAll('.dynamic-csv-header').forEach(header => header.remove());
+    const actionHeader = headerRow.lastElementChild;
+
+    columnasVisibles.forEach(columna => {
+        const th = document.createElement('th');
+        th.className = 'dynamic-csv-header';
+        th.textContent = columna.etiqueta;
+        headerRow.insertBefore(th, actionHeader);
+    });
+
+    extensionesData.forEach((item, index) => {
+        if (!item.valores) item.valores = crearValoresExtension(item);
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-index', index);
+        tr.className = item.isOriginal ? 'row-csv' : 'row-new';
+
+        const tagOrigen = item.isOriginal 
+            ? `<span class="badge badge-csv">CSV</span>` 
+            : `<span class="badge badge-new">Nueva</span>`;
+
+        const celdasCSV = columnasVisibles.map(columna => {
+            const esSecret = columna.normalizado === 'secret';
+            const claseCelda = esSecret ? 'secret-cell' : 'csv-cell';
+            const claseInput = esSecret ? 'secret-input' : 'csv-input';
+            const botonSecret = esSecret
+                ? `<button class="regenerate-secret" type="button" title="Regenerar clave de 32 caracteres" onclick="generarClaveFila(${index})">🔄</button>`
+                : '';
+
+            return `
+                <td class="${claseCelda}">
+                    <div class="${esSecret ? 'secret-input-wrapper' : ''}">
+                        <input class="${claseInput}" type="text" value="${escaparHTML(item.valores[columna.indice] || '')}" onchange="actualizarDato(${index}, ${columna.indice}, this.value)">
+                        ${botonSecret}
+                    </div>
+                </td>
+            `;
+        }).join('');
+
+        tr.innerHTML = `
+            <td style="text-align: center;">
+                <input type="checkbox" ${item.selected ? 'checked' : ''} onchange="toggleSelect(${index}, this.checked)">
+            </td>
+            <td>${tagOrigen}</td>
+            ${celdasCSV}
+            <td style="text-align: center;">
+                <button class="btn btn-danger" style="padding: 3px 8px; font-size: 11px;" onclick="eliminarFila(${index})">X</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    actualizarContador();
+}
+
+function seleccionarPorModo(modo) {
+    if (!modo) return;
+
+    extensionesData.forEach(item => {
+        if (modo === 'csv') item.selected = item.isOriginal;
+        else if (modo === 'new') item.selected = !item.isOriginal;
+        else if (modo === 'all') item.selected = true;
+        else if (modo === 'none') item.selected = false;
+    });
+
+    renderTabla();
+}
+
+function actualizarDato(index, campo, valor) {
+    const item = extensionesData[index];
+    const valorLimpio = valor.trim();
+    item.valores[campo] = valorLimpio;
+
+    const nombreColumna = columnasCSV.find(columna => columna.indice === campo)?.normalizado;
+    if (nombreColumna === 'user extension') item.ext = valorLimpio;
+    if (nombreColumna === 'display name') item.name = valorLimpio;
+    if (nombreColumna === 'secret') item.secret = valorLimpio;
+    if (nombreColumna === 'tech') item.tech = valorLimpio.toLowerCase() === 'iax2' ? 'iax' : valorLimpio.toLowerCase();
+    if (nombreColumna === 'context') item.context = valorLimpio;
+}
+
+function generarClaveFila(index) {
+    const item = extensionesData[index];
+    item.secret = generarSecretIssabel();
+    const indiceSecret = obtenerIndiceColumna('Secret');
+    if (indiceSecret !== -1) item.valores[indiceSecret] = item.secret;
+    renderTabla();
+}
+
+function generarClavesTodas() {
+    const indiceSecret = obtenerIndiceColumna('Secret');
+    extensionesData.forEach(item => {
+        item.secret = generarSecretIssabel();
+        if (indiceSecret !== -1) item.valores[indiceSecret] = item.secret;
+    });
+    renderTabla();
+    mostrarStatus("Se generaron claves de 32 caracteres Hexadecimales para todas las extensiones.", false);
+}
+
+function toggleSelect(index, isChecked) {
+    extensionesData[index].selected = isChecked;
+    actualizarContador();
+}
+
+function eliminarFila(index) {
+    extensionesData.splice(index, 1);
+    renderTabla();
+}
+
+function eliminarSeleccionadas() {
+    const prevCount = extensionesData.length;
+    extensionesData = extensionesData.filter(item => !item.selected);
+    const eliminadas = prevCount - extensionesData.length;
+    
+    renderTabla();
+    mostrarStatus(`Se eliminaron ${eliminadas} extensiones seleccionadas.`, false);
+}
+
+function filtrarTabla() {
+    const text = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#tableBody tr');
+
+    rows.forEach(row => {
+        const idx = row.getAttribute('data-index');
+        const item = extensionesData[idx];
+        const match = item.ext.toLowerCase().includes(text) || item.name.toLowerCase().includes(text);
+        row.style.display = match ? '' : 'none';
+    });
+}
+
+function actualizarContador() {
+    const selCount = extensionesData.filter(i => i.selected).length;
+    const csvCount = extensionesData.filter(i => i.isOriginal).length;
+    const newCount = extensionesData.filter(i => !i.isOriginal).length;
+    
+    document.getElementById('counterInfo').innerText = 
+        `Total: ${extensionesData.length} (CSV: ${csvCount} | Nuevas: ${newCount}) | Seleccionadas: ${selCount}`;
+}
+
+function exportarCSV() {
+    if (extensionesData.length === 0) {
+        mostrarStatus("No hay extensiones para exportar.", true);
+        return;
+    }
+
+    const extensionesSeleccionadas = extensionesData.filter(item => item.selected);
+    if (extensionesSeleccionadas.length === 0) {
+        mostrarStatus("Selecciona al menos una extensión para exportar.", true);
+        return;
+    }
+
+    const extensionesInvalidas = extensionesSeleccionadas.filter(item =>
+        !/^\d+$/.test(String(item.ext).trim()) ||
+        !/^[0-9a-f]{32}$/i.test(String(item.secret).trim())
+    );
+    if (extensionesInvalidas.length > 0) {
+        mostrarStatus("Hay extensiones seleccionadas con una extensión o secreto inválido.", true);
+        return;
+    }
+
+    const extensionesVistas = new Set();
+    const extensionesDuplicadas = extensionesSeleccionadas.some(item => {
+        const ext = String(item.ext).trim();
+        if (extensionesVistas.has(ext)) return true;
+        extensionesVistas.add(ext);
+        return false;
+    });
+    if (extensionesDuplicadas) {
+        mostrarStatus("Hay extensiones duplicadas entre las seleccionadas.", true);
+        return;
+    }
+
+    const columnasExportacion = columnasCSV.length > 0 ? columnasCSV : ISSABEL_COLUMNS.map((nombre, indice) => ({
+        indice,
+        normalizado: normalizarEncabezado(nombre),
+        etiqueta: nombre
+    }));
+    let resultado = [columnasExportacion.map(columna => escaparCSV(columna.etiqueta)).join(',')];
+
+    extensionesSeleccionadas.forEach(item => {
+        const filaLimpia = columnasExportacion.map(columna => {
+            if (item.valores && item.valores[columna.indice] !== undefined) {
+                return item.valores[columna.indice];
+            }
+            return obtenerValorExportacion(item, columna.etiqueta);
+        });
+        resultado.push(filaLimpia.map(escaparCSV).join(','));
+    });
+
+    const blob = new Blob([resultado.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'issabel_batch_extensions_ready.csv';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    mostrarStatus(`¡CSV exportado con éxito (${extensionesSeleccionadas.length} extensiones y ${columnasExportacion.length} campos)!`, false);
+}
+
+function mostrarStatus(mensaje, esError) {
+    const status = document.getElementById('status');
+    status.style.display = 'block';
+    status.innerText = mensaje;
+    status.className = esError ? 'status-error' : 'status-success';
+}
+</script>
+
+</body>
+</html>
