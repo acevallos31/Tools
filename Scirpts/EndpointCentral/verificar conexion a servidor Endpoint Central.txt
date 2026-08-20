@@ -1,0 +1,137 @@
+$H='endpointcentral-agent10.manageengine.com'
+$IP='204.141.43.172'
+$K='HKLM:\SOFTWARE\WOW6432Node\AdventNet\DesktopCentral\DCAgent'
+$LOG="$env:USERPROFILE\Desktop\ec-diag-$env:COMPUTERNAME.txt"
+
+function L($t){
+    $t | Tee-Object -FilePath $LOG -Append
+}
+
+L ("=== {0} | IP={1} | inicio {2} ===" -f `
+    $env:COMPUTERNAME,
+    ((Get-NetIPAddress -AddressFamily IPv4 |
+        ? {$_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.*'} |
+        Select -First 1 -Expand IPAddress)),
+    (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+)
+
+L ("gateway: " + `
+    ((Get-NetRoute -DestinationPrefix '0.0.0.0/0' |
+        Select -First 1 -Expand NextHop))
+)
+
+L ("DNS resuelve {0} -> {1}" -f `
+    $H,
+    ((Resolve-DnsName $H -Type A -EA SilentlyContinue |
+        ? {$_.IPAddress} |
+        Select -First 1 -Expand IPAddress))
+)
+
+L ("agente: servicio={0} ResourceID={1}" -f `
+    (Get-Service 'ManageEngine UEMS - Agent' -EA SilentlyContinue).Status,
+    $(if((Get-ItemProperty $K -EA SilentlyContinue).dcAgentResourceID){
+        (Get-ItemProperty $K).dcAgentResourceID
+    }else{
+        '<VACIO>'
+    })
+)
+
+L "`n=== MUESTREO 10 min (cada 30 s) ==="
+L "hora      TCP443  emisor-del-certificado                    GET-HTTP"
+
+for($i=1;$i -le 20;$i++){
+
+    $t=$false
+    $c=New-Object Net.Sockets.TcpClient
+
+    try{
+        $a=$c.BeginConnect($IP,443,$null,$null)
+
+        if($a.AsyncWaitHandle.WaitOne(3000)){
+            $c.EndConnect($a)
+            $t=$true
+        }
+    }catch{}
+
+    $c.Close()
+
+    $iss='-'
+    $http='-'
+
+    if($t){
+
+        try{
+            $tc=New-Object Net.Sockets.TcpClient($H,443)
+
+            $ss=New-Object Net.Security.SslStream(
+                $tc.GetStream(),
+                $false,
+                ({$true} -as [Net.Security.RemoteCertificateValidationCallback])
+            )
+
+            $ss.AuthenticateAsClient($H)
+            $iss=$ss.RemoteCertificate.Issuer
+
+            $ss.Close()
+            $tc.Close()
+
+        }catch{
+            $iss='TLS-ERR'
+        }
+
+        try{
+            $r=Invoke-WebRequest "https://$H" `
+                -UseBasicParsing `
+                -TimeoutSec 15
+
+            $http=[string]$r.StatusCode
+
+        }catch{
+            if($_.Exception.Response){
+                $http=[string][int]$_.Exception.Response.StatusCode +
+                      ' ' +
+                      $_.Exception.Response.StatusDescription
+            }else{
+                $http='sin-respuesta'
+            }
+        }
+    }
+
+    L ("{0}  {1,-6}  {2,-38}  {3}" -f `
+        (Get-Date -Format 'HH:mm:ss'),
+        $t,
+        ($iss -replace '^CN=',''),
+        $http
+    )
+
+    if($i -lt 20){
+        Start-Sleep -Seconds 30
+    }
+}
+
+L "`n=== ESTADO FINAL DEL AGENTE ==="
+
+$p=Get-ItemProperty $K -EA SilentlyContinue
+
+L ("ResourceID={0} Approval={1} AgentID={2}" -f `
+    $(if($p.dcAgentResourceID){
+        $p.dcAgentResourceID
+    }else{
+        '<VACIO>'
+    }),
+    $p.ApprovalStatus,
+    $p.AGENT_ID
+)
+
+L "`n=== ULTIMOS INTENTOS DEL AGENTE (con hora) ==="
+
+L (
+    Get-Content `
+        'C:\Program Files (x86)\ManageEngine\UEMS_Agent\logs\hostondemandrequest.log' `
+        -Tail 800 |
+    Select-String `
+        'Status:HTTP/1.1|WinHttpSendRequest ->|Wait for \d+ seconds' |
+    Select -Last 12
+)
+
+L "`n=== archivo $LOG ==="
