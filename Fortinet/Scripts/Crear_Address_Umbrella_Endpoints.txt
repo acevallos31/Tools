@@ -1,0 +1,79 @@
+config firewall address
+    edit "apde.amp.cisco.com"
+        set type fqdn
+        set fqdn "apde.amp.cisco.com"
+    next
+    edit "clam-defs.amp.cisco.com"
+        set type fqdn
+        set fqdn "clam-defs.amp.cisco.com"
+    next
+    edit "cloud-ec-asn.amp.cisco.com"
+        set type fqdn
+        set fqdn "cloud-ec-asn.amp.cisco.com"
+    next
+    edit "cloud-ec-est.amp.cisco.com"
+        set type fqdn
+        set fqdn "cloud-ec-est.amp.cisco.com"
+    next
+    edit "console.amp.cisco.com"
+        set type fqdn
+        set fqdn "console.amp.cisco.com"
+    next
+    edit "crash.amp.cisco.com"
+        set type fqdn
+        set fqdn "crash.amp.cisco.com"
+    next
+    edit "custom-signatures.amp.cisco.com"
+        set type fqdn
+        set fqdn "custom-signatures.amp.cisco.com"
+    next
+    edit "enrolment.amp.cisco.com"
+        set type fqdn
+        set fqdn "enrolment.amp.cisco.com"
+    next
+    edit "intake.amp.cisco.com"
+        set type fqdn
+        set fqdn "intake.amp.cisco.com"
+    next
+    edit "ioc.amp.cisco.com"
+        set type fqdn
+        set fqdn "ioc.amp.cisco.com"
+    next
+    edit "mgmt.amp.cisco.com"
+        set type fqdn
+        set fqdn "mgmt.amp.cisco.com"
+    next
+    edit "nimbus.bitdefender.net"
+        set type fqdn
+        set fqdn "nimbus.bitdefender.net"
+    next
+    edit "policy.amp.cisco.com"
+        set type fqdn
+        set fqdn "policy.amp.cisco.com"
+    next
+    edit "rff.amp.cisco.com"
+        set type fqdn
+        set fqdn "rff.amp.cisco.com"
+    next
+    edit "submit.amp.cisco.com"
+        set type fqdn
+        set fqdn "submit.amp.cisco.com"
+    next
+    edit "tetra-defs.amp.cisco.com"
+        set type fqdn
+        set fqdn "tetra-defs.amp.cisco.com"
+    next
+    edit "upgrades.amp.cisco.com"
+        set type fqdn
+        set fqdn "upgrades.amp.cisco.com"
+    next
+end
+
+config firewall addrgrp
+    edit "Umbrella_Endpoints"
+        set member "apde.amp.cisco.com" "clam-defs.amp.cisco.com" "cloud-ec-asn.amp.cisco.com" "cloud-ec-est.amp.cisco.com" "console.amp.cisco.com" "crash.amp.cisco.com" "custom-signatures.amp.cisco.com" "enrolment.amp.cisco.com" "intake.amp.cisco.com" "ioc.amp.cisco.com" "mgmt.amp.cisco.com" "nimbus.bitdefender.net" "policy.amp.cisco.com" "rff.amp.cisco.com" "submit.amp.cisco.com" "tetra-defs.amp.cisco.com" "upgrades.amp.cisco.com"
+    next
+end
+
+show firewall addrgrp "Umbrella_Endpoints"
+diagnose firewall fqdn list
