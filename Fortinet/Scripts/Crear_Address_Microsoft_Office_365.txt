@@ -1,0 +1,215 @@
+config firewall address
+    edit "login.microsoftonline.com"
+        set type fqdn
+        set fqdn "login.microsoftonline.com"
+    next
+    edit "login.microsoft.com"
+        set type fqdn
+        set fqdn "login.microsoft.com"
+    next
+    edit "login.windows.net"
+        set type fqdn
+        set fqdn "login.windows.net"
+    next
+    edit "*.botframework.com"
+        set type fqdn
+        set fqdn "*.botframework.com"
+    next
+    edit "*.cortana.ai"
+        set type fqdn
+        set fqdn "*.cortana.ai"
+    next
+    edit "*.delve.office.com"
+        set type fqdn
+        set fqdn "*.delve.office.com"
+    next
+    edit "*.platform.bing.com"
+        set type fqdn
+        set fqdn "*.platform.bing.com"
+    next
+    edit "*.pushd.svc.ms"
+        set type fqdn
+        set fqdn "*.pushd.svc.ms"
+    next
+    edit "*.qas.bing.net"
+        set type fqdn
+        set fqdn "*.qas.bing.net"
+    next
+    edit "*.outlook.office.com"
+        set type fqdn
+        set fqdn "*.outlook.office.com"
+    next
+    edit "csp.microsoft.com"
+        set type fqdn
+        set fqdn "csp.microsoft.com"
+    next
+    edit "aadcdn.msftauth.net"
+        set type fqdn
+        set fqdn "aadcdn.msftauth.net"
+    next
+    edit "amcdn.msftauth.net"
+        set type fqdn
+        set fqdn "amcdn.msftauth.net"
+    next
+    edit "arc.msn.com"
+        set type fqdn
+        set fqdn "arc.msn.com"
+    next
+    edit "augloop.office.com"
+        set type fqdn
+        set fqdn "augloop.office.com"
+    next
+    edit "browser.events.data.microsoft.com"
+        set type fqdn
+        set fqdn "browser.events.data.microsoft.com"
+    next
+    edit "clients.config.office.net"
+        set type fqdn
+        set fqdn "clients.config.office.net"
+    next
+    edit "cloud.microsoft"
+        set type fqdn
+        set fqdn "cloud.microsoft"
+    next
+    edit "graph.microsoft.com"
+        set type fqdn
+        set fqdn "graph.microsoft.com"
+    next
+    edit "js.monitor.azure.com"
+        set type fqdn
+        set fqdn "js.monitor.azure.com"
+    next
+    edit "lamundialhn-my.sharepoint.com"
+        set type fqdn
+        set fqdn "lamundialhn-my.sharepoint.com"
+    next
+    edit "m365.cloud.microsoft"
+        set type fqdn
+        set fqdn "m365.cloud.microsoft"
+    next
+    edit "office.com"
+        set type fqdn
+        set fqdn "office.com"
+    next
+    edit "microsoft.com"
+        set type fqdn
+        set fqdn "microsoft.com"
+    next
+    edit "mobile.events.data.microsoft.com"
+        set type fqdn
+        set fqdn "mobile.events.data.microsoft.com"
+    next
+    edit "my.sharepoint.com"
+        set type fqdn
+        set fqdn "my.sharepoint.com"
+    next
+    edit "mysignins.microsoft.com"
+        set type fqdn
+        set fqdn "mysignins.microsoft.com"
+    next
+    edit "officeapps.live.com"
+        set type fqdn
+        set fqdn "officeapps.live.com"
+    next
+    edit "outlook.office365.com"
+        set type fqdn
+        set fqdn "outlook.office365.com"
+    next
+    edit "r4.res.office365.com"
+        set type fqdn
+        set fqdn "r4.res.office365.com"
+    next
+    edit "res-1.cdn.office.net"
+        set type fqdn
+        set fqdn "res-1.cdn.office.net"
+    next
+    edit "res-2.cdn.office.net"
+        set type fqdn
+        set fqdn "res-2.cdn.office.net"
+    next
+    edit "res.cdn.office.net"
+        set type fqdn
+        set fqdn "res.cdn.office.net"
+    next
+    edit "res.public.onecdn.static.microsoft"
+        set type fqdn
+        set fqdn "res.public.onecdn.static.microsoft"
+    next
+    edit "roaming.officeapps.live.com"
+        set type fqdn
+        set fqdn "roaming.officeapps.live.com"
+    next
+    edit "sharepoint.com"
+        set type fqdn
+        set fqdn "sharepoint.com"
+    next
+    edit "static.cdnpk.net"
+        set type fqdn
+        set fqdn "static.cdnpk.net"
+    next
+    edit "statics.teams.cdn.office.net"
+        set type fqdn
+        set fqdn "statics.teams.cdn.office.net"
+    next
+    edit "teams.microsoft.com"
+        set type fqdn
+        set fqdn "teams.microsoft.com"
+    next
+    edit "www.microsoft.com"
+        set type fqdn
+        set fqdn "www.microsoft.com"
+    next
+    edit "outlook.office.com"
+        set type fqdn
+        set fqdn "outlook.office.com"
+    next
+    edit "*.office.net"
+        set type fqdn
+        set fqdn "*.office.net"
+    next
+    edit "*.akamai.net"
+        set type fqdn
+        set fqdn "*.akamai.net"
+    next
+    edit "*.azureedge.net"
+        set type fqdn
+        set fqdn "*.azureedge.net"
+    next
+    edit "*.msftauth.net"
+        set type fqdn
+        set fqdn "*.msftauth.net"
+    next
+    edit "*.msauth.net"
+        set type fqdn
+        set fqdn "*.msauth.net"
+    next
+    edit "*.live.com"
+        set type fqdn
+        set fqdn "*.live.com"
+    next
+    edit "*.outlook.com"
+        set type fqdn
+        set fqdn "*.outlook.com"
+    next
+    edit "*.office365.com"
+        set type fqdn
+        set fqdn "*.office365.com"
+    next
+    edit "*.office.com"
+        set type fqdn
+        set fqdn "*.office.com"
+    next
+    edit "*.microsoft.com"
+        set type fqdn
+        set fqdn "*.microsoft.com"
+    next
+end
+
+config firewall addrgrp
+    edit "Microsoft Office 365"
+        set member "login.microsoftonline.com" "login.microsoft.com" "login.windows.net" "*.botframework.com" "*.cortana.ai" "*.delve.office.com" "*.platform.bing.com" "*.pushd.svc.ms" "*.qas.bing.net" "*.outlook.office.com" "csp.microsoft.com" "aadcdn.msftauth.net" "amcdn.msftauth.net" "arc.msn.com" "augloop.office.com" "browser.events.data.microsoft.com" "clients.config.office.net" "cloud.microsoft" "graph.microsoft.com" "js.monitor.azure.com" "lamundialhn-my.sharepoint.com" "m365.cloud.microsoft" "office.com" "microsoft.com" "mobile.events.data.microsoft.com" "my.sharepoint.com" "mysignins.microsoft.com" "officeapps.live.com" "outlook.office365.com" "r4.res.office365.com" "res-1.cdn.office.net" "res-2.cdn.office.net" "res.cdn.office.net" "res.public.onecdn.static.microsoft" "roaming.officeapps.live.com" "sharepoint.com" "static.cdnpk.net" "statics.teams.cdn.office.net" "teams.microsoft.com" "www.microsoft.com" "outlook.office.com" "*.office.net" "*.akamai.net" "*.azureedge.net" "*.msftauth.net" "*.msauth.net" "*.live.com" "*.outlook.com" "*.office365.com" "*.office.com" "*.microsoft.com"
+    next
+end
+
+show firewall addrgrp "Microsoft Office 365"
+diagnose firewall fqdn list
