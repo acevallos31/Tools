@@ -1,0 +1,35 @@
+config firewall address
+    edit "BAC_SEVER01"
+        set subnet 200.115.18.48 255.255.255.255
+    next
+    edit "BAC_SEVER02"
+        set subnet 190.111.17.25 255.255.255.255
+    next
+    edit "BAC_SEVER03"
+        set subnet 167.86.46.236 255.255.255.255
+    next
+    edit "BAC_SEVER04"
+        set subnet 200.106.227.168 255.255.255.255
+    next
+    edit "BAC_SEVER05"
+        set subnet 190.5.69.70 255.255.255.255
+    next
+    edit "BAC_SEVER06"
+        set subnet 66.22.16.93 255.255.255.255
+    next
+    edit "BAC_SEVER07"
+        set subnet 66.22.16.95 255.255.255.255
+    next
+end
+
+config firewall addrgrp
+    edit "BAC_SERVERS"
+        append member "BAC_SEVER01"
+        append member "BAC_SEVER02"
+        append member "BAC_SEVER03"
+        append member "BAC_SEVER04"
+        append member "BAC_SEVER05"
+        append member "BAC_SEVER06"
+        append member "BAC_SEVER07"
+    next
+end
