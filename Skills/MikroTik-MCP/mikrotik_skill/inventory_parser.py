@@ -1053,6 +1053,10 @@ def parse_inventory(
                 "cpu"
             ),
 
+            "cpu_model": resources.get(
+                "cpu"
+            ),
+
             "cpu_count": resources.get(
                 "cpu_count"
             ),

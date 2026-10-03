@@ -1,6 +1,6 @@
 import ipaddress
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 def is_private(address: Optional[str]) -> bool:

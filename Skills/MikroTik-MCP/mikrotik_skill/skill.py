@@ -6,9 +6,10 @@ from typing import Any, Dict, Optional
 from .client import MikroTikClient
 from .config import CONFIG
 from .inventory import collect_inventory
-from .inventory_parser import parse_inventory
 from .inventory_analyzer import analyze_inventory
-from .profiles import load_password, load_profile
+from .inventory_parser import parse_inventory
+from .profiles import load_profile
+from .session_manager import SESSION_MANAGER
 from .traffic import analyze_device_traffic
 
 
@@ -69,13 +70,16 @@ def run_skill(
     """
     Punto de entrada principal del MikroTik Skill.
 
-    Si se especifica device, carga automáticamente:
+    Cuando se especifica device:
 
-    - host
-    - puerto
-    - usuario
-    - interfaz predeterminada
-    - contraseña protegida mediante DPAPI
+    - carga el perfil local del dispositivo;
+    - utiliza SESSION_MANAGER;
+    - reutiliza la sesión SSH cuando sea posible;
+    - utiliza el secreto DPAPI administrado por SESSION_MANAGER;
+    - no cierra la sesión al finalizar cada operación.
+
+    Cuando no se especifica device, conserva el flujo
+    anterior mediante una conexión SSH temporal.
 
     El consumidor nunca proporciona comandos RouterOS
     arbitrarios.
@@ -86,23 +90,19 @@ def run_skill(
     )
 
     profile = None
+    managed_session = False
 
     if device:
         profile = load_profile(device)
 
-        if password is None:
-            password = load_password(device)
-
         if interface is None:
             interface = profile.default_interface
 
-        client = MikroTikClient(
-            host=profile.host,
-            port=profile.port,
-            username=profile.username,
-            password=password,
+        client = SESSION_MANAGER.get_client(
+            device
         )
 
+        managed_session = True
         target = profile.host
 
     else:
@@ -128,7 +128,10 @@ def run_skill(
         result["device"] = profile.name
 
     try:
-        client.connect()
+        # Los clientes administrados por SESSION_MANAGER
+        # ya se entregan conectados.
+        if not managed_session:
+            client.connect()
 
         if operation == "inventory":
             result["inventory"] = (
@@ -169,7 +172,10 @@ def run_skill(
         }
 
     finally:
-        client.close()
+        # Las sesiones administradas deben permanecer
+        # abiertas para poder reutilizarlas desde MCP/Hermes.
+        if not managed_session:
+            client.close()
 
     return result
 
@@ -183,7 +189,7 @@ def run_interactive(
     """
     Variante para ejecución manual desde PowerShell.
 
-    Con device usa el secreto DPAPI.
+    Con device utiliza SESSION_MANAGER y el secreto DPAPI.
 
     Sin device conserva temporalmente el flujo
     interactivo anterior.
