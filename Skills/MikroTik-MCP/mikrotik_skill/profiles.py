@@ -1,0 +1,168 @@
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+
+
+PROFILE_NAME_ALLOWED = set(
+    "abcdefghijklmnopqrstuvwxyz"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "0123456789_-"
+)
+
+
+@dataclass(frozen=True)
+class DeviceProfile:
+    name: str
+    host: str
+    port: int
+    username: str
+    default_interface: str
+
+
+def _base_dir() -> Path:
+    appdata = os.getenv("APPDATA")
+
+    if not appdata:
+        raise RuntimeError(
+            "La variable APPDATA no está disponible."
+        )
+
+    return Path(appdata) / "MikroTikSkill"
+
+
+def _validate_profile_name(name: str) -> str:
+    name = name.strip()
+
+    if not name:
+        raise ValueError(
+            "El nombre del perfil está vacío."
+        )
+
+    if any(char not in PROFILE_NAME_ALLOWED for char in name):
+        raise ValueError(
+            f"Nombre de perfil no permitido: {name!r}"
+        )
+
+    return name
+
+
+def load_profile(name: str) -> DeviceProfile:
+    name = _validate_profile_name(name)
+
+    path = (
+        _base_dir()
+        / "profiles"
+        / f"{name}.json"
+    )
+
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"No existe el perfil {name!r}."
+        )
+
+    data = json.loads(
+        path.read_text(encoding="utf-8-sig")
+    )
+
+    required = {
+        "name",
+        "host",
+        "port",
+        "username",
+        "default_interface",
+    }
+
+    missing = required - data.keys()
+
+    if missing:
+        raise ValueError(
+            f"Perfil incompleto. Faltan: "
+            f"{sorted(missing)}"
+        )
+
+    if data["name"] != name:
+        raise ValueError(
+            "El nombre interno del perfil "
+            "no coincide con el archivo."
+        )
+
+    port = int(data["port"])
+
+    if not 1 <= port <= 65535:
+        raise ValueError(
+            f"Puerto inválido: {port}"
+        )
+
+    return DeviceProfile(
+        name=name,
+        host=str(data["host"]),
+        port=port,
+        username=str(data["username"]),
+        default_interface=str(
+            data["default_interface"]
+        ),
+    )
+
+
+def load_password(name: str) -> str:
+    name = _validate_profile_name(name)
+
+    path = (
+        _base_dir()
+        / "secrets"
+        / f"{name}-password.dat"
+    )
+
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"No existe el secreto del perfil {name!r}."
+        )
+
+    ps_path = str(path).replace("'", "''")
+
+    script = f"""
+$encrypted = Get-Content -Raw '{ps_path}'
+$secure = $encrypted | ConvertTo-SecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+
+try {{
+    [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+}}
+finally {{
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+}}
+"""
+
+    result = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            script,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            "No fue posible descifrar el secreto "
+            f"del perfil {name!r}: "
+            f"{result.stderr.strip()}"
+        )
+
+    password = result.stdout.strip()
+
+    if not password:
+        raise RuntimeError(
+            f"El secreto del perfil {name!r} está vacío."
+        )
+
+    return password
