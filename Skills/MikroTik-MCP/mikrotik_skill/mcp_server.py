@@ -11,6 +11,7 @@ from pydantic import Field
 
 from .charting import render_cpu_chart, render_interface_chart
 from .observability import audited_call
+from .profiles import list_profiles
 from .session_manager import SESSION_MANAGER
 from .skill import run_skill
 
@@ -155,6 +156,42 @@ def _filter_interface(result: dict[str, Any], interface: str) -> dict[str, Any]:
     result = dict(result)
     result["interfaces"] = payload
     return result
+
+
+@server.tool(
+    title="MikroTik Devices",
+    description="List configured local MikroTik profiles without exposing credentials or management addresses.",
+    annotations=READ_ONLY,
+    structured_output=False,
+)
+def mikrotik_devices() -> CallToolResult:
+    def execute() -> CallToolResult:
+        devices = []
+        for profile in list_profiles():
+            session = SESSION_MANAGER.telemetry(profile.name)
+            devices.append(
+                {
+                    "device": profile.name,
+                    "default_interface": profile.default_interface,
+                    "host_key_pinned": bool(profile.host_key_sha256),
+                    "session_connected": bool(session.get("connected", False)),
+                }
+            )
+
+        return _compact_result(
+            {
+                "status": "ok",
+                "operation": "devices",
+                "device_count": len(devices),
+                "devices": devices,
+            }
+        )
+
+    return audited_call(
+        "mikrotik_devices",
+        {},
+        execute,
+    )
 
 
 @server.tool(
