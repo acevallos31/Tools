@@ -5,6 +5,7 @@ from typing import Optional
 
 from .client import MikroTikClient
 from .config import CONFIG
+from .validation import validate_interface_name
 
 
 @dataclass
@@ -44,21 +45,7 @@ def capture_torch(
             "La duración de Torch debe estar entre 1 y 30 segundos."
         )
 
-    # Guardrail: evitar inyección de comandos RouterOS
-    # mediante el nombre de la interfaz.
-    allowed = set(
-        "abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "0123456789-_"
-    )
-
-    if not interface or any(
-        char not in allowed
-        for char in interface
-    ):
-        raise ValueError(
-            f"Nombre de interfaz no permitido: {interface!r}"
-        )
+    interface = validate_interface_name(interface)
 
     command = (
         f"/tool torch "
@@ -77,7 +64,7 @@ def capture_torch(
             if result.ok and result.stdout
             else "empty"
         ),
-        target=CONFIG.host,
+        target=client.host,
         interface=interface,
         duration_seconds=duration,
         timestamp=datetime.now().isoformat(),
@@ -229,8 +216,10 @@ def analyze_device_traffic(
     # 5. Agregar trazabilidad
     # -----------------------------------------------------
 
-    report["capture"]["raw_file"] = str(
-        raw_path
+    report["capture"]["raw_capture_file"] = raw_path.name
+    report["capture"]["evidence_note"] = (
+        "Torch describe flujos y tasas observadas durante esta captura. "
+        "No demuestra por sí solo estabilidad, causalidad ni ausencia de amenazas."
     )
 
     return report
