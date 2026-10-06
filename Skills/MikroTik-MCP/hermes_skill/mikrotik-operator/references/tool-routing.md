@@ -2,6 +2,7 @@
 
 | User intent | MCP call |
 |---|---|
+| List/discover configured routers | `mikrotik_devices()` |
 | Current CPU/RAM/storage/uptime/firmware | `mikrotik_status(device, section="health")` |
 | CPU over time | `mikrotik_status(device, section="health", duration=N, interval=1)` |
 | CPU over time + graph | same call with `chart=true` |
