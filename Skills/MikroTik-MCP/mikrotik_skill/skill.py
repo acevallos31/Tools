@@ -175,105 +175,74 @@ def run_skill(
     """
     Punto de entrada principal del MikroTik Skill.
 
-    Cuando se especifica device:
-
-    - carga el perfil local del dispositivo;
-    - utiliza SESSION_MANAGER;
-    - reutiliza la sesión SSH cuando sea posible;
-    - utiliza el secreto DPAPI administrado por SESSION_MANAGER;
-    - no cierra la sesión al finalizar cada operación;
-    - devuelve telemetría segura de ejecución y sesión.
-
-    Cuando no se especifica device, conserva el flujo
-    anterior mediante una conexión SSH temporal.
-
-    El consumidor nunca proporciona comandos RouterOS
-    arbitrarios.
+    Toda la preparación de perfil, secreto y conexión queda dentro del mismo
+    boundary de errores que la operación RouterOS. Así, fallos de autenticación,
+    host key o conectividad regresan como errores estructurados en lugar de
+    escapar como excepciones MCP genéricas.
     """
 
-    operation = _validate_operation(
-        operation
-    )
-
-    if operation == "session_status":
-        if not device:
-            raise ValueError(
-                "session_status requiere un perfil de dispositivo."
-            )
-        return _session_status(device)
-
+    operation = _validate_operation(operation)
     started_at = time.perf_counter()
 
     profile = None
+    client: Optional[MikroTikClient] = None
     managed_session = False
     session_reused = False
     session_reuse_count = 0
     session_age_seconds = 0.0
 
-    if device:
-        profile = load_profile(device)
-
-        if interface is None:
-            interface = profile.default_interface
-
-        client = SESSION_MANAGER.get_client(
-            device
-        )
-
-        managed_session = True
-        target = profile.host
-
-        session_info = SESSION_MANAGER.telemetry(
-            device
-        )
-
-        session_reused = bool(
-            session_info.get(
-                "reused",
-                False,
-            )
-        )
-
-        session_reuse_count = int(
-            session_info.get(
-                "reuse_count",
-                0,
-            )
-        )
-
-        session_age_seconds = float(
-            session_info.get(
-                "age_seconds",
-                0.0,
-            )
-        )
-
-    else:
-        if not password:
-            raise ValueError(
-                "Se requiere contraseña SSH "
-                "cuando no se utiliza un perfil."
-            )
-
-        client = MikroTikClient(
-            password=password,
-        )
-
-        target = CONFIG.host
-
     result: Dict[str, Any] = {
         "status": "ok",
         "operation": operation,
-        "target": target,
     }
 
-    if profile is not None:
-        result["device"] = profile.name
+    if device:
+        result["device"] = device
 
     try:
-        # Los clientes administrados por SESSION_MANAGER
-        # ya se entregan conectados.
-        if not managed_session:
+        if operation == "session_status":
+            if not device:
+                raise ValueError(
+                    "session_status requiere un perfil de dispositivo."
+                )
+
+            result.update(
+                _session_status(device)
+            )
+            return result
+
+        if device:
+            profile = load_profile(device)
+
+            if interface is None:
+                interface = profile.default_interface
+
+            client = SESSION_MANAGER.get_client(device)
+            managed_session = True
+
+            session_info = SESSION_MANAGER.telemetry(device)
+
+            session_reused = bool(
+                session_info.get("reused", False)
+            )
+            session_reuse_count = int(
+                session_info.get("reuse_count", 0)
+            )
+            session_age_seconds = float(
+                session_info.get("age_seconds", 0.0)
+            )
+
+            result["device"] = profile.name
+        else:
+            if not password:
+                raise ValueError(
+                    "Se requiere contraseña SSH "
+                    "cuando no se utiliza un perfil."
+                )
+
+            client = MikroTikClient(
+                password=password,
+            )
             client.connect()
 
         if operation in {
@@ -313,6 +282,7 @@ def run_skill(
                 raise ValueError(
                     "interface_sample requiere una interfaz."
                 )
+
             result["interface_sample"] = sample_interface_traffic(
                 client=client,
                 interface=interface,
@@ -321,27 +291,20 @@ def run_skill(
             )
 
         elif operation == "traffic":
-            result["traffic"] = (
-                analyze_device_traffic(
-                    client=client,
-                    interface=interface,
-                    duration=duration,
-                )
+            result["traffic"] = analyze_device_traffic(
+                client=client,
+                interface=interface,
+                duration=duration,
             )
 
         elif operation == "full":
-            result["inventory"] = (
-                _collect_and_analyze_inventory(
-                    client
-                )
+            result["inventory"] = _collect_and_analyze_inventory(
+                client
             )
-
-            result["traffic"] = (
-                analyze_device_traffic(
-                    client=client,
-                    interface=interface,
-                    duration=duration,
-                )
+            result["traffic"] = analyze_device_traffic(
+                client=client,
+                interface=interface,
+                duration=duration,
             )
 
     except Exception as exc:
@@ -349,38 +312,22 @@ def run_skill(
         result["error"] = classify_error(exc)
 
     finally:
-        # Las sesiones administradas deben permanecer
-        # abiertas para poder reutilizarlas desde MCP/Hermes.
-        if not managed_session:
+        if client is not None and not managed_session:
             client.close()
 
-        elapsed_seconds = (
-            time.perf_counter() - started_at
-        )
+        elapsed_seconds = time.perf_counter() - started_at
 
         execution: Dict[str, Any] = {
-            "elapsed_seconds": round(
-                elapsed_seconds,
-                3,
-            ),
+            "elapsed_seconds": round(elapsed_seconds, 3),
             "managed_session": managed_session,
         }
 
         if device:
-            final_session_info = (
-                SESSION_MANAGER.telemetry(
-                    device
-                )
-            )
-
+            final_session_info = SESSION_MANAGER.telemetry(device)
             execution.update(
                 {
-                    "session_reused": (
-                        session_reused
-                    ),
-                    "session_reuse_count": (
-                        session_reuse_count
-                    ),
+                    "session_reused": session_reused,
+                    "session_reuse_count": session_reuse_count,
                     "session_age_seconds": round(
                         float(
                             final_session_info.get(
