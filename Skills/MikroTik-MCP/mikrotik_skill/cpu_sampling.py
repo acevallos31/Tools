@@ -13,6 +13,8 @@ MIN_DURATION_SECONDS = 5
 MAX_DURATION_SECONDS = 120
 MIN_INTERVAL_SECONDS = 1
 MAX_SAMPLES = 120
+CPU_MIN_PERCENT = 0
+CPU_MAX_PERCENT = 100
 
 
 def validate_cpu_sample_request(
@@ -72,7 +74,17 @@ def sample_cpu(
             )
 
         resources = parse_resources(result.stdout)
-        cpu = int(resources.get("cpu_load_percent", 0))
+        raw_cpu = resources.get("cpu_load_percent")
+        if raw_cpu is None:
+            raise RuntimeError(
+                "RouterOS no devolvió cpu-load en la muestra."
+            )
+
+        cpu = int(raw_cpu)
+        if not CPU_MIN_PERCENT <= cpu <= CPU_MAX_PERCENT:
+            raise RuntimeError(
+                f"Valor cpu-load fuera de rango: {cpu}"
+            )
         elapsed = sample_started - started
 
         readings.append(
