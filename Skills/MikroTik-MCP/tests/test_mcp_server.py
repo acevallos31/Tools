@@ -23,7 +23,7 @@ def test_server_exposes_small_tool_surface() -> None:
         "mikrotik_status",
         "mikrotik_cpu_sample",
         "mikrotik_inventory",
-        "mikrotik_traffic",
+        "mikrotik_torch_flows",
         "mikrotik_full",
     }
 
