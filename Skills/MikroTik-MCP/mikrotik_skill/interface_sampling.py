@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import statistics
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from .client import MikroTikClient
@@ -105,6 +106,7 @@ def sample_interface_traffic(
     interface = validate_interface_name(interface)
     duration, interval = validate_interface_sample_request(duration, interval)
 
+    window_started_at = datetime.now(timezone.utc).isoformat()
     started = time.perf_counter()
     next_sample = started
     readings: List[Dict[str, Any]] = []
@@ -145,6 +147,13 @@ def sample_interface_traffic(
     drop_values = [item["tx_queue_drops_per_second"] for item in readings]
 
     return {
+        "measurement": {
+            "kind": "time_series",
+            "metric": "interface_rate_bps",
+            "source": f"/interface monitor-traffic {interface} once",
+            "window_started_at": window_started_at,
+            "window_completed_at": datetime.now(timezone.utc).isoformat(),
+        },
         "interface": interface,
         "requested_duration_seconds": duration,
         "interval_seconds": interval,
