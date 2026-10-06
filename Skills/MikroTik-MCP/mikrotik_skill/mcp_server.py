@@ -26,7 +26,16 @@ server = MCPServer(
         "interpretarse como carga sostenida sin mediciones adicionales. "
         "No atribuyas una carga de CPU elevada a un flujo de tráfico, "
         "puerto, host o posible incidente de seguridad sin evidencia "
-        "adicional que demuestre esa relación."
+        "adicional que demuestre esa relación. "
+        "Selección de herramientas: para CPU, memoria, almacenamiento, uptime "
+        "o firmware usa mikrotik_health; para interfaces, puertos, enlaces o "
+        "contadores usa mikrotik_interfaces; para direcciones IP, rutas, gateway "
+        "o connection tracking usa mikrotik_network; para comprobar el estado "
+        "de la sesión SSH usa mikrotik_session_status; usa mikrotik_inventory "
+        "solo cuando se necesite el inventario completo y mikrotik_full solo "
+        "cuando se necesiten inventario y tráfico juntos. Antes de afirmar que "
+        "no existe acceso o conectividad al dispositivo, intenta primero la "
+        "herramienta específica apropiada para la consulta."
     ),
     version="0.5.0",
 )
@@ -83,7 +92,7 @@ def mikrotik_inventory(
 def mikrotik_health(
     device: str,
 ) -> CallToolResult:
-    """Obtiene estado compacto de CPU, memoria, almacenamiento y firmware."""
+    """Consulta CPU, memoria, almacenamiento, uptime y firmware del MikroTik.\n\n    Usa esta herramienta para preguntas sobre carga o porcentaje de CPU,\n    recursos del sistema, memoria RAM, espacio de almacenamiento, uptime,\n    versión RouterOS o firmware. Es preferible a mikrotik_inventory para\n    preguntas de salud porque devuelve un payload pequeño y específico.\n    """
 
     return _structured_result(
         run_skill(operation="health", device=device)
@@ -96,7 +105,7 @@ def mikrotik_health(
 def mikrotik_interfaces(
     device: str,
 ) -> CallToolResult:
-    """Obtiene interfaces, contadores y hallazgos relacionados con enlaces."""
+    """Consulta puertos e interfaces, estado de enlace, contadores y link-downs.\n\n    Usa esta herramienta para preguntas sobre ether/sfp/bridge/VLAN, puertos\n    activos o caídos, estadísticas de interfaces y eventos de link-down.\n    """
 
     return _structured_result(
         run_skill(operation="interfaces", device=device)
@@ -109,7 +118,7 @@ def mikrotik_interfaces(
 def mikrotik_network(
     device: str,
 ) -> CallToolResult:
-    """Obtiene direcciones, rutas y estado de connection tracking."""
+    """Consulta direcciones IP, rutas, gateway y connection tracking.\n\n    Usa esta herramienta para preguntas de direccionamiento y enrutamiento.\n    """
 
     return _structured_result(
         run_skill(operation="network", device=device)
@@ -122,7 +131,7 @@ def mikrotik_network(
 def mikrotik_session_status(
     device: str,
 ) -> CallToolResult:
-    """Consulta telemetría de la sesión SSH sin abrir una conexión nueva."""
+    """Consulta solo el estado de la sesión SSH administrada.\n\n    No consulta RouterOS ni abre una conexión nueva. Úsala para diagnóstico\n    de conexión, reutilización, edad o contador de reutilización de sesión.\n    """
 
     return _structured_result(
         run_skill(operation="session_status", device=device)
