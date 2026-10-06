@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 from .client import MikroTikClient
 from .config import CONFIG
+from .cpu_sampling import sample_cpu
 from .inventory import collect_inventory
 from .inventory_analyzer import analyze_inventory
 from .inventory_parser import parse_inventory
@@ -19,6 +20,7 @@ ALLOWED_OPERATIONS = {
     "health",
     "interfaces",
     "network",
+    "cpu_sample",
     "session_status",
     "traffic",
     "full",
@@ -141,6 +143,7 @@ def run_skill(
     password: Optional[str] = None,
     interface: Optional[str] = None,
     duration: Optional[int] = None,
+    interval: Optional[int] = None,
     device: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -264,6 +267,13 @@ def run_skill(
                     inventory,
                     operation,
                 )
+
+        elif operation == "cpu_sample":
+            result["cpu_sample"] = sample_cpu(
+                client=client,
+                duration=duration if duration is not None else 30,
+                interval=interval if interval is not None else 1,
+            )
 
         elif operation == "traffic":
             result["traffic"] = (
