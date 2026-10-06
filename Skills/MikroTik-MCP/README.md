@@ -1,49 +1,143 @@
 # MikroTik MCP Skill
 
-Skill de consulta y análisis seguro para dispositivos MikroTik RouterOS, expuesto mediante Model Context Protocol (MCP).
+Herramienta profesional de observabilidad y diagnóstico **read-only** para MikroTik RouterOS mediante Model Context Protocol (MCP).
 
-## Estado validado
+El proyecto separa tres responsabilidades:
 
-- Windows + PowerShell
-- Python 3.14
-- Paramiko 5.x
-- MCP Python SDK 2.3.0
-- Hermes Agent v0.21.3
-- Qwen3 Coder 30B mediante endpoint OpenAI-compatible
-- RouterOS 7.24.4
-- MikroTik CRS112-8P-4S
+- **Hermes Skill**: procedimiento, selección de herramientas y reglas de interpretación.
+- **MCP Server**: contrato tipado, validación, auditoría y resultados estructurados.
+- **RouterOS backend**: medición real mediante sesiones SSH administradas.
 
 ## Objetivo
 
-Permitir que agentes compatibles con MCP consulten y analicen equipos MikroTik sin entregar al modelo acceso SSH arbitrario, credenciales ni una consola RouterOS genérica.
+Permitir que un agente consulte y diagnostique equipos MikroTik sin entregar al LLM una consola SSH/RouterOS genérica, credenciales ni comandos arbitrarios.
 
-## Herramientas MCP
+## Superficie MCP
 
-- mikrotik_status(device, section="health"): consulta compacta de estado. Secciones: health, interfaces, network y session.
-- mikrotik_inventory(device): inventario y análisis determinístico completo.
-- mikrotik_traffic(device, duration=5): captura y análisis mediante RouterOS Torch.
-- mikrotik_full(device, duration=5): inventario + tráfico.
+- `mikrotik_devices()`: descubre perfiles locales sin exponer host, usuario ni secretos.
+- `mikrotik_status(...)`: salud, interfaces, red, sesión SSH y series temporales.
+- `mikrotik_inventory(device)`: inventario completo y análisis determinístico.
+- `mikrotik_torch_flows(...)`: flujos de red con RouterOS Torch.
+- `mikrotik_full(...)`: inventario completo + Torch; operación costosa y explícita.
 
-No se expone execute_command, shell, ssh_command ni routeros_command.
+### Estado y series temporales
 
-## Arquitectura
+`mikrotik_status` concentra observaciones relacionadas y evita herramientas MCP solapadas:
 
-Agente/LLM -> MCP stdio -> mikrotik_skill -> perfil + DPAPI -> Paramiko/SSH -> RouterOS
+- `section="health", duration=0`: CPU/RAM/storage/uptime/firmware puntual.
+- `section="health", duration>0`: muestreo real de CPU.
+- `section="interfaces", duration=0`: estado y contadores acumulados.
+- `section="interfaces", interface="ether1", duration>0`: RX/TX actuales mediante RouterOS `monitor-traffic ... once`.
+- `section="network"`: IPs, rutas y connection tracking.
+- `section="session"`: telemetría de la sesión SSH.
+- `chart=true`: para una serie temporal devuelve además un PNG construido a partir de las mismas muestras.
 
-El modelo selecciona una operación y un nombre lógico de dispositivo. La IP, usuario, interfaz predeterminada y contraseña no necesitan formar parte del prompt.
+Torch permanece separado porque responde otra pregunta: **quién/qué genera tráfico** (hosts, protocolos, puertos y flujos), no CPU ni ancho de banda temporal de una interfaz.
+
+## Evidencia y análisis
+
+El backend diferencia explícitamente:
+
+- muestra instantánea;
+- contador acumulado;
+- serie temporal medida;
+- captura Torch acotada.
+
+Reglas importantes:
+
+- una muestra de CPU no demuestra carga sostenida;
+- RX/TX bytes acumulados no representan ancho de banda actual;
+- `link-downs` es histórico;
+- Torch no demuestra estabilidad, causalidad ni ausencia de amenazas;
+- datos faltantes permanecen desconocidos.
+
+Los promedios, mínimos, máximos y series se calculan en Python; el LLM interpreta los resultados, no inventa las mediciones.
 
 ## Seguridad
 
-La versión actual es de solo lectura/análisis. No modifica configuración, no reinicia dispositivos y no expone comandos RouterOS arbitrarios.
+- Solo lectura.
+- Sin `execute_command`, shell, SSH arbitrario o RouterOS CLI libre.
+- Parámetros tipados y limitados mediante JSON Schema.
+- Torch limitado a 1–30 s.
+- Muestreos temporales limitados a 5–120 s y máximo 120 muestras.
+- Contraseñas locales protegidas con Windows DPAPI.
+- Pin SHA256 opcional de host key SSH por perfil; recomendado/requerido para uso fuera de laboratorio.
+- Tool annotations MCP marcan todas las operaciones como read-only/closed-world.
+- Auditoría JSONL con argumentos sensibles redactados.
 
-Consulta SECURITY.md, ARCHITECTURE.md y HERMES.md para los detalles técnicos.
+Consulta `SECURITY.md` para el modelo de confianza.
 
-## Rendimiento
+## Observabilidad
 
-El servidor MCP reutiliza sesiones SSH administradas por perfil. Las herramientas granulares reducen el payload enviado al LLM cuando una consulta solo necesita salud, interfaces o red. `mikrotik_session_status` permite comprobar la reutilización sin ejecutar comandos RouterOS adicionales.
+Cada llamada MCP pública registra un evento redacted en:
 
-## Próximos pasos
+`%APPDATA%\MikroTikSkill\logs\mcp-audit.jsonl`
 
-1. Empaquetar el proyecto con pyproject.toml para eliminar la dependencia temporal de PYTHONPATH.
-2. Añadir perfiles para más dispositivos.
-3. Mantener futuras operaciones de escritura como herramientas separadas, validadas y con aprobación.
+Incluye correlation ID, herramienta, perfil, parámetros no sensibles, duración, operación backend, resultado y telemetría de sesión. La auditoría está diseñada para permitir un dashboard posterior sin cambiar el contrato MCP.
+
+## Sesiones SSH
+
+Existe una sesión persistente por perfil para evitar repetir handshake/autenticación. El Session Manager:
+
+- reutiliza conexiones vivas;
+- reconstruye sesiones muertas antes de una nueva operación;
+- cachea el secreto DPAPI solo durante la vida del proceso;
+- expone edad/reutilizaciones/estado;
+- no reenvía secretos al LLM.
+
+## Hermes companion skill
+
+El skill está en:
+
+`hermes_skill/mikrotik-operator/`
+
+y enseña al modelo:
+
+- intención → herramienta;
+- cuándo una consulta exige dato fresco;
+- cuándo usar serie temporal;
+- cuándo usar Torch;
+- cómo interpretar evidencia sin sobreafirmar;
+- no reemplazar una capacidad MCP existente con Terminal/subagentes/scripts improvisados.
+
+Instalación:
+
+```powershell
+.\scripts\install-hermes-skill.ps1
+```
+
+## Instalación Python
+
+El proyecto ya es instalable:
+
+```powershell
+python -m pip install -e .
+```
+
+También puede ejecutarse durante desarrollo mediante `PYTHONPATH`, pero la instalación editable es la opción preferida.
+
+## Pruebas
+
+Pruebas aisladas:
+
+```powershell
+python -m pytest -q -m "not integration and not hardware"
+```
+
+Prueba de integración RouterOS aislada, con Docker/QEMU:
+
+```powershell
+python -m pytest -q -m integration
+```
+
+La suite de integración levanta un RouterOS temporal, inicializa únicamente su credencial de laboratorio y después ejecuta consultas read-only.
+
+GitHub Actions ejecuta la suite rápida en cada PR; el sandbox RouterOS tiene workflow separado.
+
+## Estado de desarrollo
+
+La rama de desarrollo permanece en `0.8.0-dev`. No se aumenta la versión por cada corrección. El siguiente cambio de versión se hará al cerrar un hito probado en sandbox y hardware real.
+
+## Investigación de referencia
+
+`PROFESSIONALIZATION.md` documenta patrones estudiados en proyectos MikroTik/RouterOS MCP existentes y qué decisiones se adoptaron o descartaron.
