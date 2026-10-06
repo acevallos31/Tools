@@ -111,7 +111,7 @@ def audited_call(
                 "correlation_id": correlation_id,
                 "tool": tool,
                 "device": params.get("device"),
-                "phase": "success",
+                "phase": "failure" if status == "error" else "success",
                 "duration_ms": duration_ms,
                 "params": params,
                 "result_status": status,
