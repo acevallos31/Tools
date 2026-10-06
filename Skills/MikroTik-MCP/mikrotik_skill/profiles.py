@@ -117,6 +117,26 @@ def load_profile(name: str) -> DeviceProfile:
     )
 
 
+
+def list_profiles() -> list[DeviceProfile]:
+    """List valid local device profiles without reading or exposing secrets."""
+
+    directory = _base_dir() / "profiles"
+    if not directory.is_dir():
+        return []
+
+    profiles: list[DeviceProfile] = []
+    for path in sorted(directory.glob("*.json")):
+        try:
+            profiles.append(
+                load_profile(path.stem)
+            )
+        except Exception:
+            # A malformed profile should not prevent discovery of the others.
+            continue
+
+    return profiles
+
 def load_password(name: str) -> str:
     name = _validate_profile_name(name)
 
