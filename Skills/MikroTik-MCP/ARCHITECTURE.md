@@ -50,6 +50,18 @@ Captura acotada RouterOS Torch para flujos: origen/destino, protocolo, puerto y 
 
 Inventario completo + Torch. Costosa y no recomendada para preguntas normales.
 
+## Frontera de datos
+
+Los datos necesarios para transportar la sesión SSH permanecen dentro del backend:
+
+- host/IP de administración;
+- puerto;
+- username;
+- password DPAPI;
+- estado interno de Paramiko.
+
+La superficie MCP trabaja con el nombre lógico del perfil. En particular, los resultados de Torch no derivan `target` desde `client.host`; reciben una etiqueta lógica del orquestador. Esto evita convertir metadatos de transporte en contexto del modelo.
+
 ## Colección dirigida
 
 Las vistas compactas no ejecutan inventario completo:
@@ -69,11 +81,13 @@ Esto reduce comandos RouterOS, latencia y payload.
 Límites:
 
 - 5–120 segundos;
-- intervalo >= 1 segundo;
+- intervalo 1–120 segundos;
 - máximo 120 muestras;
 - CPU validada entre 0 y 100.
 
-El backend calcula mínimo, máximo, promedio, mediana, primera y última lectura.
+La primera lectura ocurre al inicio de la ventana. Las siguientes se programan según `interval`. Si una consulta tarda más que el intervalo, no se intentan recuperar muestras vencidas en ráfaga. Si el siguiente slot caería fuera de la ventana, el sampler espera solamente hasta el deadline y termina.
+
+Cada lectura incluye timestamp UTC y tiempo transcurrido. El backend calcula mínimo, máximo, promedio, mediana, primera y última lectura.
 
 ### Interfaces
 
@@ -83,9 +97,9 @@ El backend calcula mínimo, máximo, promedio, mediana, primera y última lectur
 /interface monitor-traffic <interface> once
 ```
 
-y repite la medición dentro de una ventana acotada.
+y repite la medición dentro de una ventana acotada usando la misma política temporal del sampler de CPU.
 
-Esto produce tasas actuales RX/TX en bits por segundo. No se confunde con los contadores históricos de bytes/packets.
+Esto produce tasas actuales RX/TX en bits por segundo y packet/drop rates. No se confunde con los contadores históricos de bytes/packets. Las estadísticas de la ventana se calculan en Python sobre las mismas lecturas que se devuelven al cliente.
 
 ## Torch
 
@@ -139,6 +153,8 @@ Los perfiles locales contienen:
 
 La contraseña vive separada, protegida por Windows DPAPI.
 
+En laboratorio puede mantenerse compatibilidad sin pin. La puerta de producción exige host-key pinning verificado antes de aprobar despliegue.
+
 ## Auditoría
 
 `observability.py` es el choke point de llamadas MCP públicas. Registra JSONL redacted con correlation ID, herramienta, perfil, parámetros, duración, operación backend y resultado.
@@ -161,4 +177,4 @@ Capas:
 4. hardware real;
 5. comportamiento agente Hermes/Qwen.
 
-El sandbox y el hardware se mantienen separados para que los tests rápidos sigan siendo determinísticos.
+El sandbox y el hardware se mantienen separados para que los tests rápidos sigan siendo determinísticos. `VALIDATION.md` define las puertas de aceptación y la evidencia esperada.
