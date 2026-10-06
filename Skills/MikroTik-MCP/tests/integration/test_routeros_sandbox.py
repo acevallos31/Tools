@@ -32,8 +32,15 @@ def _docker_available() -> bool:
         return False
 
 
-def _wait_for_ssh_banner(host: str, port: int) -> None:
-    for _ in range(60):
+def _wait_for_ssh_banner(
+    host: str,
+    port: int,
+    max_attempts: int = 60,
+    delay: int = 5,
+) -> None:
+    """Wait for RouterOS itself, not just QEMU hostfwd accepting TCP."""
+
+    for _ in range(max_attempts):
         try:
             with socket.create_connection((host, port), timeout=5) as sock:
                 sock.settimeout(5)
@@ -41,42 +48,102 @@ def _wait_for_ssh_banner(host: str, port: int) -> None:
                     return
         except Exception:
             pass
-        time.sleep(5)
-    raise RuntimeError("RouterOS sandbox did not expose an SSH banner in time.")
+        time.sleep(delay)
+
+    raise RuntimeError(
+        "RouterOS sandbox did not expose an SSH banner in time."
+    )
 
 
-def _set_initial_password(host: str, port: int, password: str) -> None:
-    # This is the only write in the sandbox fixture. Tests themselves are read-only.
-    for current in ("", password):
+def _try_set_initial_password(
+    host: str,
+    port: int,
+    password: str,
+) -> bool:
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(
+            paramiko.AutoAddPolicy()
+        )
+        ssh.connect(
+            hostname=host,
+            port=port,
+            username="admin",
+            password="",
+            timeout=20,
+            look_for_keys=False,
+            allow_agent=False,
+        )
+        _, stdout, stderr = ssh.exec_command(
+            f"/user set 0 password={password}"
+        )
+        reply = (
+            stdout.read() + stderr.read()
+        ).decode(errors="replace").strip()
+        ssh.close()
+        return not reply
+    except Exception:
+        return False
+
+
+def _verify_ssh_auth(
+    host: str,
+    port: int,
+    password: str,
+    max_attempts: int = 6,
+    delay: int = 5,
+) -> bool:
+    for _ in range(max_attempts):
         try:
             ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.set_missing_host_key_policy(
+                paramiko.AutoAddPolicy()
+            )
             ssh.connect(
                 hostname=host,
                 port=port,
                 username="admin",
-                password=current,
-                timeout=20,
+                password=password,
+                timeout=10,
                 look_for_keys=False,
                 allow_agent=False,
             )
-            if current == "":
-                _, stdout, stderr = ssh.exec_command(
-                    f"/user set 0 password={password}"
-                )
-                reply = (stdout.read() + stderr.read()).decode(
-                    errors="replace"
-                ).strip()
-                ssh.close()
-                if reply:
-                    continue
-                time.sleep(2)
-            else:
-                ssh.close()
-            return
+            _, stdout, _ = ssh.exec_command(
+                "/system identity print"
+            )
+            output = stdout.read().decode(
+                errors="replace"
+            )
+            ssh.close()
+
+            if output:
+                return True
         except Exception:
-            continue
-    raise RuntimeError("Could not initialize RouterOS sandbox password.")
+            pass
+
+        time.sleep(delay)
+
+    return False
+
+
+def _ensure_password(
+    host: str,
+    port: int,
+    password: str,
+) -> None:
+    # Fresh evilfreelancer/docker-routeros images boot with an empty admin
+    # password. Set it once in the isolated fixture, then verify before tests.
+    if _try_set_initial_password(host, port, password):
+        if _verify_ssh_auth(host, port, password):
+            return
+
+    # Also supports an already-initialized/reused sandbox.
+    if _verify_ssh_auth(host, port, password):
+        return
+
+    raise RuntimeError(
+        "Unable to authenticate to RouterOS sandbox over SSH."
+    )
 
 
 @pytest.fixture(scope="module")
@@ -88,11 +155,16 @@ def routeros_sandbox():
         "privileged": True,
         "cap_add": ["NET_ADMIN", "NET_RAW"],
     }
+
     if os.name != "nt":
-        kwargs["devices"] = ["/dev/net/tun:/dev/net/tun"]
+        kwargs["devices"] = [
+            "/dev/net/tun:/dev/net/tun"
+        ]
 
     container = (
-        DockerContainer("evilfreelancer/docker-routeros:latest")
+        DockerContainer(
+            "evilfreelancer/docker-routeros:latest"
+        )
         .with_exposed_ports(22)
         .with_kwargs(**kwargs)
     )
@@ -100,10 +172,13 @@ def routeros_sandbox():
     try:
         container.start()
         host = container.get_container_host_ip()
-        port = int(container.get_exposed_port(22))
+        port = int(
+            container.get_exposed_port(22)
+        )
         password = "mikrotik-sandbox-123"
+
         _wait_for_ssh_banner(host, port)
-        _set_initial_password(host, port, password)
+        _ensure_password(host, port, password)
 
         yield {
             "host": host,
@@ -128,7 +203,9 @@ def _client(sandbox) -> MikroTikClient:
     return client
 
 
-def test_read_only_health_inventory(routeros_sandbox) -> None:
+def test_read_only_health_inventory(
+    routeros_sandbox,
+) -> None:
     client = _client(routeros_sandbox)
     try:
         raw = collect_inventory_sections(
@@ -139,12 +216,17 @@ def test_read_only_health_inventory(routeros_sandbox) -> None:
 
         assert parsed["device"]["identity"]
         assert parsed["device"]["routeros"]
-        assert isinstance(parsed["health"]["cpu_load_percent"], int)
+        assert isinstance(
+            parsed["health"]["cpu_load_percent"],
+            int,
+        )
     finally:
         client.close()
 
 
-def test_cpu_sampler_collects_real_window(routeros_sandbox) -> None:
+def test_cpu_sampler_collects_real_window(
+    routeros_sandbox,
+) -> None:
     client = _client(routeros_sandbox)
     try:
         result = sample_cpu(
