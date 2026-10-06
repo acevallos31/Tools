@@ -39,4 +39,4 @@ jobs:
         run: python -m compileall -q mikrotik_skill
 
       - name: Tests
-        run: python -m pytest -q
+        run: python -m pytest -q -m "not integration and not hardware"
