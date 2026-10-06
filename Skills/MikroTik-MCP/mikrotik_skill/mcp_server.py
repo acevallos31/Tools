@@ -34,7 +34,7 @@ server = MCPServer(
         "al dispositivo sin intentar primero mikrotik_status cuando la "
         "pregunta sea sobre su estado."
     ),
-    version="0.7.1",
+    version="0.7.2",
 )
 
 
@@ -88,8 +88,11 @@ def mikrotik_status(
             network = direcciones IP, rutas, gateway y connection tracking.
             session = conexión SSH, reutilización y edad de la sesión.
 
-    Esta es la herramienta preferida para preguntas normales de estado.
+    Esta es la herramienta preferida SOLO para estado puntual.
     Para "¿cómo está el CPU?" usa section="health".
+    NO usar si el usuario pide CPU durante X segundos/minutos, monitorear,
+    muestrear, promedio, máximo, mínimo, tendencia o gráfico; en esos casos
+    usa obligatoriamente mikrotik_cpu_sample.
     """
 
     operation = "session_status" if section == "session" else section
@@ -120,9 +123,11 @@ def mikrotik_cpu_sample(
         interval:
             Separación entre muestras en segundos, mínimo 1.
 
-    USA ESTA TOOL cuando el usuario pida observar o analizar CPU durante un
-    período, obtener promedio/mínimo/máximo, tendencia, serie temporal o un
-    gráfico. Una sola llamada realiza todo el muestreo; no hagas múltiples
+    USA ESTA TOOL OBLIGATORIAMENTE cuando CPU aparezca junto a una duración
+    (por ejemplo 30 segundos o 2 minutos), o cuando el usuario pida observar,
+    monitorear, muestrear, promedio/mínimo/máximo, tendencia, serie temporal
+    o gráfico. mikrotik_status solo da una lectura puntual y NO satisface
+    solicitudes de CPU durante un período. Una sola llamada realiza todo el muestreo; no hagas múltiples
     llamadas a mikrotik_status para simular una serie temporal.
 
     El campo readings contiene elapsed_seconds y cpu_percent y puede
