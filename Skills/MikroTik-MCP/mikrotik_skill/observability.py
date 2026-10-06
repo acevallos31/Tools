@@ -7,6 +7,8 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .app_paths import logs_dir
 from typing import Any, Callable, Dict, TypeVar
 
 
@@ -31,18 +33,11 @@ SENSITIVE_KEYS = {
 _WRITE_LOCK = threading.RLock()
 
 
-def _base_dir() -> Path:
-    appdata = os.getenv("APPDATA")
-    if appdata:
-        return Path(appdata) / "MikroTikSkill"
-    return Path.home() / ".mikrotik-skill"
-
-
 def audit_path() -> Path:
     override = os.getenv("MIKROTIK_SKILL_AUDIT_LOG")
     if override:
         return Path(override)
-    return _base_dir() / "logs" / "mcp-audit.jsonl"
+    return logs_dir() / "mcp-audit.jsonl"
 
 
 def _redact(value: Any) -> Any:
