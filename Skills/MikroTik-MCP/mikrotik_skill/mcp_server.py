@@ -28,7 +28,7 @@ server = MCPServer(
         "puerto, host o posible incidente de seguridad sin evidencia "
         "adicional que demuestre esa relación."
     ),
-    version="0.4.0",
+    version="0.5.0",
 )
 
 
@@ -75,6 +75,58 @@ def mikrotik_inventory(
     )
 
     return _structured_result(result)
+
+
+@server.tool(
+    structured_output=False,
+)
+def mikrotik_health(
+    device: str,
+) -> CallToolResult:
+    """Obtiene estado compacto de CPU, memoria, almacenamiento y firmware."""
+
+    return _structured_result(
+        run_skill(operation="health", device=device)
+    )
+
+
+@server.tool(
+    structured_output=False,
+)
+def mikrotik_interfaces(
+    device: str,
+) -> CallToolResult:
+    """Obtiene interfaces, contadores y hallazgos relacionados con enlaces."""
+
+    return _structured_result(
+        run_skill(operation="interfaces", device=device)
+    )
+
+
+@server.tool(
+    structured_output=False,
+)
+def mikrotik_network(
+    device: str,
+) -> CallToolResult:
+    """Obtiene direcciones, rutas y estado de connection tracking."""
+
+    return _structured_result(
+        run_skill(operation="network", device=device)
+    )
+
+
+@server.tool(
+    structured_output=False,
+)
+def mikrotik_session_status(
+    device: str,
+) -> CallToolResult:
+    """Consulta telemetría de la sesión SSH sin abrir una conexión nueva."""
+
+    return _structured_result(
+        run_skill(operation="session_status", device=device)
+    )
 
 
 @server.tool(
