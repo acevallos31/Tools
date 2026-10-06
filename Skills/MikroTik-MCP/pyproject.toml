@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mikrotik-mcp-skill"
+version = "0.8.0.dev0"
+description = "Read-only, typed MCP observability and diagnostics for MikroTik RouterOS"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp==2.3.0",
+  "paramiko==5.0.0",
+  "Pillow==12.3.0",
+]
+
+[project.scripts]
+mikrotik-mcp = "mikrotik_skill.mcp_server:main"
+
+[tool.setuptools]
+packages = ["mikrotik_skill"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "integration: requires Docker/RouterOS sandbox",
+  "hardware: requires an explicitly configured physical RouterOS device",
+]
