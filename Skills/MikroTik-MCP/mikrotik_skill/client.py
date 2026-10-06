@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac
 from dataclasses import dataclass
 from typing import Optional
 
@@ -30,6 +33,7 @@ class MikroTikClient:
         host: Optional[str] = None,
         port: Optional[int] = None,
         username: Optional[str] = None,
+        host_key_sha256: Optional[str] = None,
     ):
         self.config = config
 
@@ -52,6 +56,9 @@ class MikroTikClient:
         )
 
         self.password = password
+        self.host_key_sha256 = host_key_sha256
+        self.host_key_verified = False
+        self.host_key_fingerprint: Optional[str] = None
 
         self.client: Optional[
             paramiko.SSHClient
@@ -83,8 +90,9 @@ class MikroTikClient:
 
         client = paramiko.SSHClient()
 
-        # Temporal para el laboratorio.
-        # Luego usaremos known_hosts + SSH key.
+        # System known_hosts is honored when present. A profile-level SHA256
+        # pin provides explicit verification even when the host is not known.
+        client.load_system_host_keys()
         client.set_missing_host_key_policy(
             paramiko.AutoAddPolicy()
         )
@@ -100,6 +108,37 @@ class MikroTikClient:
             look_for_keys=False,
             allow_agent=False,
         )
+
+        transport = client.get_transport()
+        remote_key = (
+            transport.get_remote_server_key()
+            if transport is not None
+            else None
+        )
+
+        if remote_key is None:
+            client.close()
+            raise paramiko.SSHException(
+                "No fue posible obtener la host key SSH remota."
+            )
+
+        digest = hashlib.sha256(remote_key.asbytes()).digest()
+        actual = "SHA256:" + base64.b64encode(digest).decode("ascii").rstrip("=")
+        self.host_key_fingerprint = actual
+
+        if self.host_key_sha256:
+            expected = self.host_key_sha256.strip()
+            if not expected.startswith("SHA256:"):
+                expected = "SHA256:" + expected.rstrip("=")
+
+            if not hmac.compare_digest(expected, actual):
+                client.close()
+                raise paramiko.SSHException(
+                    "La host key SSH no coincide con el pin del perfil. "
+                    f"Esperada {expected}; recibida {actual}."
+                )
+
+            self.host_key_verified = True
 
         self.client = client
 
