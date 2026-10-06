@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from .client import MikroTikClient
+from .app_paths import captures_dir
 from .config import CONFIG
 from .validation import validate_interface_name
 
@@ -86,7 +87,7 @@ def save_raw_capture(
     sin tener que ejecutar una nueva captura.
     """
 
-    directory = directory or CONFIG.raw_dir
+    directory = directory or captures_dir()
 
     directory.mkdir(
         parents=True,
