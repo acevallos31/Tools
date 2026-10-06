@@ -28,13 +28,13 @@ server = MCPServer(
         "contadores a section=interfaces; IP, rutas, gateway y connection "
         "tracking a section=network; estado o reutilización SSH a "
         "section=session. Si el usuario pide analizar, observar, muestrear o graficar CPU durante varios segundos usa mikrotik_cpu_sample. Usa mikrotik_inventory únicamente cuando el usuario "
-        "pida inventario completo, mikrotik_traffic para Torch y mikrotik_full "
+        "pida inventario completo, mikrotik_torch_flows para Torch y mikrotik_full "
         "solo cuando necesite inventario y tráfico juntos. Todas las "
         "herramientas son de solo lectura. Nunca afirmes que no existe acceso "
         "al dispositivo sin intentar primero mikrotik_status cuando la "
         "pregunta sea sobre su estado."
     ),
-    version="0.7.0",
+    version="0.7.1",
 )
 
 
@@ -158,11 +158,19 @@ def mikrotik_inventory(
 @server.tool(
     structured_output=False,
 )
-def mikrotik_traffic(
+def mikrotik_torch_flows(
     device: str,
     duration: int = 5,
 ) -> CallToolResult:
-    """Captura tráfico con RouterOS Torch durante 1 a 30 segundos."""
+    """Inspecciona FLUJOS DE RED con RouterOS Torch.
+
+    USA ESTA TOOL exclusivamente para preguntas sobre hosts/IP, protocolos,
+    puertos, conversaciones o quién genera/recibe tráfico de red.
+
+    NO usar para CPU, RAM, almacenamiento, uptime ni recursos del sistema.
+    Si la pregunta menciona CPU durante un período usa mikrotik_cpu_sample,
+    aunque también mencione segundos, análisis o gráfico.
+    """
 
     return _structured_result(
         run_skill(
