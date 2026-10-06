@@ -21,6 +21,7 @@ def test_server_exposes_small_tool_surface() -> None:
     names = {tool.name for tool in server._tool_manager.list_tools()}
     assert names == {
         "mikrotik_status",
+        "mikrotik_cpu_sample",
         "mikrotik_inventory",
         "mikrotik_traffic",
         "mikrotik_full",
