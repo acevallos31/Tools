@@ -19,7 +19,11 @@ Permitir que agentes compatibles con MCP consulten y analicen equipos MikroTik s
 
 ## Herramientas MCP
 
-- mikrotik_inventory(device): inventario y análisis determinístico.
+- mikrotik_health(device): CPU, memoria, almacenamiento, firmware y hallazgos de salud.
+- mikrotik_interfaces(device): interfaces, contadores y hallazgos de enlace.
+- mikrotik_network(device): direcciones, rutas y connection tracking.
+- mikrotik_session_status(device): telemetría de la sesión SSH sin abrir una conexión nueva.
+- mikrotik_inventory(device): inventario y análisis determinístico completo.
 - mikrotik_traffic(device, duration=5): captura y análisis mediante RouterOS Torch.
 - mikrotik_full(device, duration=5): inventario + tráfico.
 
@@ -37,9 +41,12 @@ La versión actual es de solo lectura/análisis. No modifica configuración, no 
 
 Consulta SECURITY.md, ARCHITECTURE.md y HERMES.md para los detalles técnicos.
 
+## Rendimiento
+
+El servidor MCP reutiliza sesiones SSH administradas por perfil. Las herramientas granulares reducen el payload enviado al LLM cuando una consulta solo necesita salud, interfaces o red. `mikrotik_session_status` permite comprobar la reutilización sin ejecutar comandos RouterOS adicionales.
+
 ## Próximos pasos
 
-1. Instrumentar tiempos de DPAPI, SSH, Torch y procesamiento.
-2. Empaquetar el proyecto con pyproject.toml para eliminar la dependencia temporal de PYTHONPATH.
-3. Añadir perfiles para más dispositivos.
-4. Mantener futuras operaciones de escritura como herramientas separadas, validadas y con aprobación.
+1. Empaquetar el proyecto con pyproject.toml para eliminar la dependencia temporal de PYTHONPATH.
+2. Añadir perfiles para más dispositivos.
+3. Mantener futuras operaciones de escritura como herramientas separadas, validadas y con aprobación.
