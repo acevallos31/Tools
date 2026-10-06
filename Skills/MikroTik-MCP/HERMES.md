@@ -40,6 +40,9 @@ mcp_servers:
     env:
       PYTHONPATH: F:\proyectos\Tools\Skills\MikroTik-MCP
     enabled: true
+    timeout: 150
+    connect_timeout: 30
+    supports_parallel_tool_calls: false
     tools:
       include:
         - mikrotik_devices
@@ -50,7 +53,7 @@ mcp_servers:
       prompts: false
 ```
 
-`include` limita las herramientas nativas que Hermes registra. Desactivar `resources` y `prompts` evita wrappers que este servidor no necesita.
+`include` limita las herramientas nativas que Hermes registra. Desactivar `resources` y `prompts` evita wrappers que este servidor no necesita. `supports_parallel_tool_calls: false` evita que el modelo lance dos diagnósticos temporales simultáneos contra el mismo proceso/RouterOS. El timeout de 150 s deja margen para la ventana máxima de muestreo de 120 s.
 
 Durante desarrollo, `PYTHONPATH` sigue siendo válido. El proyecto ya tiene `pyproject.toml`; tras instalarlo en editable se puede migrar a:
 
