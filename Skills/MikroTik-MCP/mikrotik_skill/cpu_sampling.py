@@ -120,4 +120,8 @@ def sample_cpu(
             "last_percent": values[-1],
         },
         "readings": readings,
+        "evidence_note": (
+            "Las estadísticas se calculan únicamente sobre las muestras de esta "
+            "ventana. No demuestran estabilidad fuera del período observado."
+        ),
     }
