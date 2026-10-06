@@ -35,8 +35,14 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
 
+      - name: Install package
+        run: python -m pip install -e . --no-deps
+
       - name: Compile
         run: python -m compileall -q mikrotik_skill
+
+      - name: MCP import smoke
+        run: python -c "from mikrotik_skill.mcp_server import server; print(len(server._tool_manager.list_tools()))"
 
       - name: Tests
         run: python -m pytest -q -m "not integration and not hardware"
