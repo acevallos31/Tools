@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import getpass
+import time
 from typing import Any, Dict, Optional
 
 from .client import MikroTikClient
@@ -76,7 +77,8 @@ def run_skill(
     - utiliza SESSION_MANAGER;
     - reutiliza la sesión SSH cuando sea posible;
     - utiliza el secreto DPAPI administrado por SESSION_MANAGER;
-    - no cierra la sesión al finalizar cada operación.
+    - no cierra la sesión al finalizar cada operación;
+    - devuelve telemetría segura de ejecución y sesión.
 
     Cuando no se especifica device, conserva el flujo
     anterior mediante una conexión SSH temporal.
@@ -89,8 +91,13 @@ def run_skill(
         operation
     )
 
+    started_at = time.perf_counter()
+
     profile = None
     managed_session = False
+    session_reused = False
+    session_reuse_count = 0
+    session_age_seconds = 0.0
 
     if device:
         profile = load_profile(device)
@@ -104,6 +111,31 @@ def run_skill(
 
         managed_session = True
         target = profile.host
+
+        session_info = SESSION_MANAGER.telemetry(
+            device
+        )
+
+        session_reused = bool(
+            session_info.get(
+                "reused",
+                False,
+            )
+        )
+
+        session_reuse_count = int(
+            session_info.get(
+                "reuse_count",
+                0,
+            )
+        )
+
+        session_age_seconds = float(
+            session_info.get(
+                "age_seconds",
+                0.0,
+            )
+        )
 
     else:
         if not password:
@@ -176,6 +208,53 @@ def run_skill(
         # abiertas para poder reutilizarlas desde MCP/Hermes.
         if not managed_session:
             client.close()
+
+        elapsed_seconds = (
+            time.perf_counter() - started_at
+        )
+
+        execution: Dict[str, Any] = {
+            "elapsed_seconds": round(
+                elapsed_seconds,
+                3,
+            ),
+            "managed_session": managed_session,
+        }
+
+        if device:
+            final_session_info = (
+                SESSION_MANAGER.telemetry(
+                    device
+                )
+            )
+
+            execution.update(
+                {
+                    "session_reused": (
+                        session_reused
+                    ),
+                    "session_reuse_count": (
+                        session_reuse_count
+                    ),
+                    "session_age_seconds": round(
+                        float(
+                            final_session_info.get(
+                                "age_seconds",
+                                session_age_seconds,
+                            )
+                        ),
+                        2,
+                    ),
+                    "session_connected": bool(
+                        final_session_info.get(
+                            "connected",
+                            False,
+                        )
+                    ),
+                }
+            )
+
+        result["execution"] = execution
 
     return result
 

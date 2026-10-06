@@ -4,6 +4,7 @@ import atexit
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
+from mcp.types import CallToolResult
 
 from .session_manager import SESSION_MANAGER
 from .skill import run_skill
@@ -27,14 +28,34 @@ server = MCPServer(
         "puerto, host o posible incidente de seguridad sin evidencia "
         "adicional que demuestre esa relación."
     ),
-    version="0.3.0",
+    version="0.4.0",
 )
 
 
-@server.tool()
+def _structured_result(
+    result: dict[str, Any],
+) -> CallToolResult:
+    """
+    Devuelve el resultado exclusivamente mediante structuredContent.
+
+    Hermes trata content y structuredContent como representaciones
+    alternativas. Mantener content vacío evita duplicar el payload
+    y permite que Hermes preserve la respuesta estructurada completa.
+    """
+
+    return CallToolResult(
+        content=[],
+        structuredContent=result,
+        isError=False,
+    )
+
+
+@server.tool(
+    structured_output=False,
+)
 def mikrotik_inventory(
     device: str,
-) -> dict[str, Any]:
+) -> CallToolResult:
     """
     Obtiene y analiza el inventario de un dispositivo MikroTik.
 
@@ -44,20 +65,25 @@ def mikrotik_inventory(
             Ejemplo: laboratorio.
 
     Returns:
-        Inventario estructurado y análisis determinístico.
+        Inventario estructurado, análisis determinístico y
+        telemetría de ejecución.
     """
 
-    return run_skill(
+    result = run_skill(
         operation="inventory",
         device=device,
     )
 
+    return _structured_result(result)
 
-@server.tool()
+
+@server.tool(
+    structured_output=False,
+)
 def mikrotik_traffic(
     device: str,
     duration: int = 5,
-) -> dict[str, Any]:
+) -> CallToolResult:
     """
     Captura y analiza tráfico mediante RouterOS Torch.
 
@@ -70,21 +96,25 @@ def mikrotik_traffic(
             El backend valida el rango permitido.
 
     Returns:
-        Captura y análisis estructurado del tráfico observado.
+        Captura, análisis estructurado y telemetría de ejecución.
     """
 
-    return run_skill(
+    result = run_skill(
         operation="traffic",
         device=device,
         duration=duration,
     )
 
+    return _structured_result(result)
 
-@server.tool()
+
+@server.tool(
+    structured_output=False,
+)
 def mikrotik_full(
     device: str,
     duration: int = 5,
-) -> dict[str, Any]:
+) -> CallToolResult:
     """
     Ejecuta inventario y análisis de tráfico del dispositivo.
 
@@ -96,14 +126,17 @@ def mikrotik_full(
             Duración de la captura Torch en segundos.
 
     Returns:
-        Inventario, análisis determinístico y análisis de tráfico.
+        Inventario, análisis determinístico, análisis de tráfico
+        y telemetría de ejecución.
     """
 
-    return run_skill(
+    result = run_skill(
         operation="full",
         device=device,
         duration=duration,
     )
+
+    return _structured_result(result)
 
 
 def _shutdown() -> None:
