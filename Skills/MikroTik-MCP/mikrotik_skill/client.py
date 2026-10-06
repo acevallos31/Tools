@@ -9,6 +9,46 @@ import paramiko
 from .config import CONFIG, MikroTikConfig
 
 
+def ssh_key_fingerprint_sha256(key: paramiko.PKey) -> str:
+    """Return an OpenSSH-style SHA256 host-key fingerprint."""
+
+    digest = hashlib.sha256(key.asbytes()).digest()
+    encoded = base64.b64encode(digest).decode("ascii").rstrip("=")
+    return f"SHA256:{encoded}"
+
+
+def normalize_fingerprint(value: str) -> str:
+    value = value.strip()
+    if not value:
+        raise ValueError("El fingerprint SSH está vacío.")
+    if value.startswith("SHA256:"):
+        return "SHA256:" + value[len("SHA256:"):].rstrip("=")
+    return "SHA256:" + value.rstrip("=")
+
+
+class PinnedHostKeyPolicy(paramiko.MissingHostKeyPolicy):
+    """Verify a SHA256 host-key pin during SSH key exchange, before auth."""
+
+    def __init__(self, expected_fingerprint: str) -> None:
+        self.expected = normalize_fingerprint(expected_fingerprint)
+
+    def missing_host_key(
+        self,
+        client: paramiko.SSHClient,
+        hostname: str,
+        key: paramiko.PKey,
+    ) -> None:
+        del client
+        actual = ssh_key_fingerprint_sha256(key)
+
+        if not hmac.compare_digest(self.expected, actual):
+            raise paramiko.BadHostKeyException(
+                hostname,
+                key,
+                key,
+            )
+
+
 @dataclass
 class CommandResult:
     command: str
@@ -90,12 +130,23 @@ class MikroTikClient:
 
         client = paramiko.SSHClient()
 
-        # System known_hosts is honored when present. A profile-level SHA256
-        # pin provides explicit verification even when the host is not known.
-        client.load_system_host_keys()
-        client.set_missing_host_key_policy(
-            paramiko.AutoAddPolicy()
-        )
+        if self.host_key_sha256:
+            # Deliberately do not load known_hosts here. The explicit pin must
+            # be the authority and is checked during key exchange before the
+            # password is sent.
+            client.set_missing_host_key_policy(
+                PinnedHostKeyPolicy(
+                    self.host_key_sha256
+                )
+            )
+        else:
+            # Lab compatibility mode. Existing system known_hosts entries are
+            # still checked; an unknown host is accepted. Production profiles
+            # should set host_key_sha256.
+            client.load_system_host_keys()
+            client.set_missing_host_key_policy(
+                paramiko.AutoAddPolicy()
+            )
 
         client.connect(
             hostname=self.host,
@@ -122,23 +173,13 @@ class MikroTikClient:
                 "No fue posible obtener la host key SSH remota."
             )
 
-        digest = hashlib.sha256(remote_key.asbytes()).digest()
-        actual = "SHA256:" + base64.b64encode(digest).decode("ascii").rstrip("=")
+        actual = ssh_key_fingerprint_sha256(
+            remote_key
+        )
         self.host_key_fingerprint = actual
-
-        if self.host_key_sha256:
-            expected = self.host_key_sha256.strip()
-            if not expected.startswith("SHA256:"):
-                expected = "SHA256:" + expected.rstrip("=")
-
-            if not hmac.compare_digest(expected, actual):
-                client.close()
-                raise paramiko.SSHException(
-                    "La host key SSH no coincide con el pin del perfil. "
-                    f"Esperada {expected}; recibida {actual}."
-                )
-
-            self.host_key_verified = True
+        self.host_key_verified = bool(
+            self.host_key_sha256
+        )
 
         self.client = client
 
