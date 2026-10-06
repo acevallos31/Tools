@@ -105,7 +105,6 @@ def load_profile(name: str) -> DeviceProfile:
     )
 
 
-
 def list_profiles() -> list[DeviceProfile]:
     """List valid local device profiles without reading or exposing secrets."""
 
@@ -124,6 +123,7 @@ def list_profiles() -> list[DeviceProfile]:
             continue
 
     return profiles
+
 
 def load_password(name: str) -> str:
     name = _validate_profile_name(name)
@@ -170,8 +170,7 @@ finally {{
     if result.returncode != 0:
         raise RuntimeError(
             "No fue posible descifrar el secreto "
-            f"del perfil {name!r}: "
-            f"{result.stderr.strip()}"
+            f"del perfil {name!r} con el usuario de Windows actual."
         )
 
     password = result.stdout.strip()
