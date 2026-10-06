@@ -19,10 +19,7 @@ Permitir que agentes compatibles con MCP consulten y analicen equipos MikroTik s
 
 ## Herramientas MCP
 
-- mikrotik_health(device): CPU, memoria, almacenamiento, firmware y hallazgos de salud.
-- mikrotik_interfaces(device): interfaces, contadores y hallazgos de enlace.
-- mikrotik_network(device): direcciones, rutas y connection tracking.
-- mikrotik_session_status(device): telemetría de la sesión SSH sin abrir una conexión nueva.
+- mikrotik_status(device, section="health"): consulta compacta de estado. Secciones: health, interfaces, network y session.
 - mikrotik_inventory(device): inventario y análisis determinístico completo.
 - mikrotik_traffic(device, duration=5): captura y análisis mediante RouterOS Torch.
 - mikrotik_full(device, duration=5): inventario + tráfico.
