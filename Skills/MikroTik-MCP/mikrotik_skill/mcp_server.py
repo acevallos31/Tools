@@ -27,14 +27,14 @@ server = MCPServer(
         "corresponden a section=health; puertos, interfaces, enlaces y "
         "contadores a section=interfaces; IP, rutas, gateway y connection "
         "tracking a section=network; estado o reutilización SSH a "
-        "section=session. Usa mikrotik_inventory únicamente cuando el usuario "
+        "section=session. Si el usuario pide analizar, observar, muestrear o graficar CPU durante varios segundos usa mikrotik_cpu_sample. Usa mikrotik_inventory únicamente cuando el usuario "
         "pida inventario completo, mikrotik_traffic para Torch y mikrotik_full "
         "solo cuando necesite inventario y tráfico juntos. Todas las "
         "herramientas son de solo lectura. Nunca afirmes que no existe acceso "
         "al dispositivo sin intentar primero mikrotik_status cuando la "
         "pregunta sea sobre su estado."
     ),
-    version="0.6.0",
+    version="0.7.0",
 )
 
 
@@ -98,6 +98,43 @@ def mikrotik_status(
         run_skill(
             operation=operation,
             device=device,
+        )
+    )
+
+
+@server.tool(
+    structured_output=False,
+)
+def mikrotik_cpu_sample(
+    device: str,
+    duration: int = 30,
+    interval: int = 1,
+) -> CallToolResult:
+    """Muestrea CPU en el tiempo y devuelve datos listos para reporte o gráfico.
+
+    Args:
+        device:
+            Perfil local del dispositivo. Ejemplo: laboratorio.
+        duration:
+            Ventana de muestreo en segundos, entre 5 y 120.
+        interval:
+            Separación entre muestras en segundos, mínimo 1.
+
+    USA ESTA TOOL cuando el usuario pida observar o analizar CPU durante un
+    período, obtener promedio/mínimo/máximo, tendencia, serie temporal o un
+    gráfico. Una sola llamada realiza todo el muestreo; no hagas múltiples
+    llamadas a mikrotik_status para simular una serie temporal.
+
+    El campo readings contiene elapsed_seconds y cpu_percent y puede
+    representarse directamente como un gráfico de línea CPU (%) vs tiempo.
+    """
+
+    return _compact_result(
+        run_skill(
+            operation="cpu_sample",
+            device=device,
+            duration=duration,
+            interval=interval,
         )
     )
 
