@@ -11,6 +11,17 @@ from mikrotik_skill.cpu_sampling import (
 )
 
 
+class FakeClock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def perf_counter(self) -> float:
+        return self.value
+
+    def sleep(self, seconds: float) -> None:
+        self.value += seconds
+
+
 class FakeClient:
     def __init__(self, values: list[int]):
         self.values = iter(values)
@@ -40,16 +51,17 @@ def test_cpu_sample_validation() -> None:
 
 def test_cpu_sample_statistics() -> None:
     client = FakeClient([10, 20, 30])
-    clock = iter([0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0])
+    clock = FakeClock()
 
     with patch(
         "mikrotik_skill.cpu_sampling.validate_cpu_sample_request",
         return_value=(2, 1),
     ), patch(
         "mikrotik_skill.cpu_sampling.time.perf_counter",
-        side_effect=lambda: next(clock),
+        side_effect=clock.perf_counter,
     ), patch(
         "mikrotik_skill.cpu_sampling.time.sleep",
+        side_effect=clock.sleep,
     ):
         result = sample_cpu(client, duration=2, interval=1)
 
@@ -63,3 +75,4 @@ def test_cpu_sample_statistics() -> None:
         "last_percent": 30,
     }
     assert [x["cpu_percent"] for x in result["readings"]] == [10, 20, 30]
+    assert result["actual_duration_seconds"] >= 2
