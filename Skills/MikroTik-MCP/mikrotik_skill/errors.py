@@ -31,6 +31,19 @@ def classify_error(exc: Exception) -> Dict[str, Any]:
         code = "SSH_TIMEOUT"
         retryable = True
         suggestion = "Verifica conectividad y vuelve a intentar la consulta."
+    elif isinstance(exc, paramiko.SSHException):
+        code = "SSH_CONNECTION_ERROR"
+        retryable = True
+        suggestion = (
+            "La sesión SSH falló. El Session Manager intentará abrir una "
+            "sesión nueva en la próxima llamada; no reutilices datos anteriores."
+        )
+    elif isinstance(exc, OSError):
+        code = "DEVICE_UNREACHABLE"
+        retryable = True
+        suggestion = (
+            "Verifica alcance IP/puerto SSH del router y vuelve a intentar."
+        )
     elif isinstance(exc, ValueError):
         code = "INVALID_ARGUMENT"
         retryable = False
