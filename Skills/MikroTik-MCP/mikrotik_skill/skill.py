@@ -295,6 +295,7 @@ def run_skill(
                 client=client,
                 interface=interface,
                 duration=duration,
+                target=profile.name if profile is not None else "direct",
             )
 
         elif operation == "full":
@@ -305,6 +306,7 @@ def run_skill(
                 client=client,
                 interface=interface,
                 duration=duration,
+                target=profile.name if profile is not None else "direct",
             )
 
     except Exception as exc:
