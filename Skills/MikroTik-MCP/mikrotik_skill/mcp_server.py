@@ -1,61 +1,104 @@
 from __future__ import annotations
 
 import atexit
-from typing import Any
+import json
+from typing import Any, Literal
 
 from mcp.server.mcpserver import MCPServer
-from mcp.types import CallToolResult
+from mcp.types import CallToolResult, TextContent
 
 from .session_manager import SESSION_MANAGER
 from .skill import run_skill
+
+
+StatusSection = Literal["health", "interfaces", "network", "session"]
 
 
 server = MCPServer(
     name="mikrotik-skill",
     title="MikroTik Network Skill",
     description=(
-        "Herramientas seguras de consulta y análisis de dispositivos "
-        "MikroTik RouterOS mediante perfiles locales preconfigurados."
+        "Consulta segura y de solo lectura de dispositivos MikroTik RouterOS "
+        "mediante perfiles locales preconfigurados."
     ),
     instructions=(
-        "Utiliza estas herramientas únicamente para consultar y analizar "
-        "dispositivos MikroTik configurados localmente. "
-        "No permiten ejecutar comandos RouterOS arbitrarios ni modificar "
-        "la configuración del dispositivo. "
-        "La carga de CPU reportada es una medición instantánea y no debe "
-        "interpretarse como carga sostenida sin mediciones adicionales. "
-        "No atribuyas una carga de CPU elevada a un flujo de tráfico, "
-        "puerto, host o posible incidente de seguridad sin evidencia "
-        "adicional que demuestre esa relación. "
-        "Selección de herramientas: para CPU, memoria, almacenamiento, uptime "
-        "o firmware usa mikrotik_health; para interfaces, puertos, enlaces o "
-        "contadores usa mikrotik_interfaces; para direcciones IP, rutas, gateway "
-        "o connection tracking usa mikrotik_network; para comprobar el estado "
-        "de la sesión SSH usa mikrotik_session_status; usa mikrotik_inventory "
-        "solo cuando se necesite el inventario completo y mikrotik_full solo "
-        "cuando se necesiten inventario y tráfico juntos. Antes de afirmar que "
-        "no existe acceso o conectividad al dispositivo, intenta primero la "
-        "herramienta específica apropiada para la consulta."
+        "Para cualquier pregunta sobre el estado actual de un MikroTik usa "
+        "mikrotik_status. CPU, memoria, almacenamiento, uptime y firmware "
+        "corresponden a section=health; puertos, interfaces, enlaces y "
+        "contadores a section=interfaces; IP, rutas, gateway y connection "
+        "tracking a section=network; estado o reutilización SSH a "
+        "section=session. Usa mikrotik_inventory únicamente cuando el usuario "
+        "pida inventario completo, mikrotik_traffic para Torch y mikrotik_full "
+        "solo cuando necesite inventario y tráfico juntos. Todas las "
+        "herramientas son de solo lectura. Nunca afirmes que no existe acceso "
+        "al dispositivo sin intentar primero mikrotik_status cuando la "
+        "pregunta sea sobre su estado."
     ),
-    version="0.5.0",
+    version="0.6.0",
 )
 
 
-def _structured_result(
-    result: dict[str, Any],
-) -> CallToolResult:
-    """
-    Devuelve el resultado exclusivamente mediante structuredContent.
-
-    Hermes trata content y structuredContent como representaciones
-    alternativas. Mantener content vacío evita duplicar el payload
-    y permite que Hermes preserve la respuesta estructurada completa.
-    """
+def _structured_result(result: dict[str, Any]) -> CallToolResult:
+    """Resultado grande: structuredContent sin duplicar el payload como texto."""
 
     return CallToolResult(
         content=[],
         structuredContent=result,
-        isError=False,
+        isError=result.get("status") == "error",
+    )
+
+
+def _compact_result(result: dict[str, Any]) -> CallToolResult:
+    """Resultado compacto visible al modelo y disponible también como JSON."""
+
+    text = json.dumps(
+        result,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
+    )
+
+    return CallToolResult(
+        content=[
+            TextContent(
+                type="text",
+                text=text,
+            )
+        ],
+        structuredContent=result,
+        isError=result.get("status") == "error",
+    )
+
+
+@server.tool(
+    structured_output=False,
+)
+def mikrotik_status(
+    device: str,
+    section: StatusSection = "health",
+) -> CallToolResult:
+    """Consulta el estado actual de un MikroTik. USA ESTA TOOL para CPU y salud.
+
+    Args:
+        device:
+            Perfil local del dispositivo. Ejemplo: laboratorio.
+        section:
+            health = CPU, RAM, almacenamiento, uptime, RouterOS y firmware.
+            interfaces = puertos, enlaces, contadores y link-downs.
+            network = direcciones IP, rutas, gateway y connection tracking.
+            session = conexión SSH, reutilización y edad de la sesión.
+
+    Esta es la herramienta preferida para preguntas normales de estado.
+    Para "¿cómo está el CPU?" usa section="health".
+    """
+
+    operation = "session_status" if section == "session" else section
+
+    return _compact_result(
+        run_skill(
+            operation=operation,
+            device=device,
+        )
     )
 
 
@@ -65,76 +108,13 @@ def _structured_result(
 def mikrotik_inventory(
     device: str,
 ) -> CallToolResult:
-    """
-    Obtiene y analiza el inventario de un dispositivo MikroTik.
-
-    Args:
-        device:
-            Nombre del perfil local preconfigurado.
-            Ejemplo: laboratorio.
-
-    Returns:
-        Inventario estructurado, análisis determinístico y
-        telemetría de ejecución.
-    """
-
-    result = run_skill(
-        operation="inventory",
-        device=device,
-    )
-
-    return _structured_result(result)
-
-
-@server.tool(
-    structured_output=False,
-)
-def mikrotik_health(
-    device: str,
-) -> CallToolResult:
-    """Consulta CPU, memoria, almacenamiento, uptime y firmware del MikroTik.\n\n    Usa esta herramienta para preguntas sobre carga o porcentaje de CPU,\n    recursos del sistema, memoria RAM, espacio de almacenamiento, uptime,\n    versión RouterOS o firmware. Es preferible a mikrotik_inventory para\n    preguntas de salud porque devuelve un payload pequeño y específico.\n    """
+    """Obtiene el inventario completo. Úsala solo si se pide inventario completo."""
 
     return _structured_result(
-        run_skill(operation="health", device=device)
-    )
-
-
-@server.tool(
-    structured_output=False,
-)
-def mikrotik_interfaces(
-    device: str,
-) -> CallToolResult:
-    """Consulta puertos e interfaces, estado de enlace, contadores y link-downs.\n\n    Usa esta herramienta para preguntas sobre ether/sfp/bridge/VLAN, puertos\n    activos o caídos, estadísticas de interfaces y eventos de link-down.\n    """
-
-    return _structured_result(
-        run_skill(operation="interfaces", device=device)
-    )
-
-
-@server.tool(
-    structured_output=False,
-)
-def mikrotik_network(
-    device: str,
-) -> CallToolResult:
-    """Consulta direcciones IP, rutas, gateway y connection tracking.\n\n    Usa esta herramienta para preguntas de direccionamiento y enrutamiento.\n    """
-
-    return _structured_result(
-        run_skill(operation="network", device=device)
-    )
-
-
-@server.tool(
-    structured_output=False,
-)
-def mikrotik_session_status(
-    device: str,
-) -> CallToolResult:
-    """Consulta solo el estado de la sesión SSH administrada.\n\n    No consulta RouterOS ni abre una conexión nueva. Úsala para diagnóstico\n    de conexión, reutilización, edad o contador de reutilización de sesión.\n    """
-
-    return _structured_result(
-        run_skill(operation="session_status", device=device)
+        run_skill(
+            operation="inventory",
+            device=device,
+        )
     )
 
 
@@ -145,28 +125,15 @@ def mikrotik_traffic(
     device: str,
     duration: int = 5,
 ) -> CallToolResult:
-    """
-    Captura y analiza tráfico mediante RouterOS Torch.
+    """Captura tráfico con RouterOS Torch durante 1 a 30 segundos."""
 
-    Args:
-        device:
-            Nombre del perfil local preconfigurado.
-
-        duration:
-            Duración de la captura en segundos.
-            El backend valida el rango permitido.
-
-    Returns:
-        Captura, análisis estructurado y telemetría de ejecución.
-    """
-
-    result = run_skill(
-        operation="traffic",
-        device=device,
-        duration=duration,
+    return _structured_result(
+        run_skill(
+            operation="traffic",
+            device=device,
+            duration=duration,
+        )
     )
-
-    return _structured_result(result)
 
 
 @server.tool(
@@ -176,36 +143,18 @@ def mikrotik_full(
     device: str,
     duration: int = 5,
 ) -> CallToolResult:
-    """
-    Ejecuta inventario y análisis de tráfico del dispositivo.
+    """Ejecuta inventario completo y Torch. Úsala solo cuando se necesiten ambos."""
 
-    Args:
-        device:
-            Nombre del perfil local preconfigurado.
-
-        duration:
-            Duración de la captura Torch en segundos.
-
-    Returns:
-        Inventario, análisis determinístico, análisis de tráfico
-        y telemetría de ejecución.
-    """
-
-    result = run_skill(
-        operation="full",
-        device=device,
-        duration=duration,
+    return _structured_result(
+        run_skill(
+            operation="full",
+            device=device,
+            duration=duration,
+        )
     )
-
-    return _structured_result(result)
 
 
 def _shutdown() -> None:
-    """
-    Cierra las sesiones SSH persistentes y elimina de memoria
-    las credenciales cacheadas cuando termina el servidor MCP.
-    """
-
     SESSION_MANAGER.close_all()
 
 
