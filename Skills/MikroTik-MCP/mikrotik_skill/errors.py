@@ -9,7 +9,14 @@ import paramiko
 def classify_error(exc: Exception) -> Dict[str, Any]:
     """Return a stable, model-readable error classification."""
 
-    if isinstance(exc, FileNotFoundError):
+    if isinstance(exc, paramiko.BadHostKeyException):
+        code = "SSH_HOST_KEY_MISMATCH"
+        retryable = False
+        suggestion = (
+            "Detén la conexión y verifica fuera de banda el fingerprint SSH "
+            "del router antes de actualizar el pin del perfil."
+        )
+    elif isinstance(exc, FileNotFoundError):
         code = "LOCAL_RESOURCE_NOT_FOUND"
         retryable = False
         suggestion = (
