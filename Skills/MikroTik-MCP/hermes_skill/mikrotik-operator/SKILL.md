@@ -15,7 +15,7 @@ Use the connected `mikrotik` MCP server as the source of truth. Do not replace a
 
 ## Procedure
 
-1. Identify the device profile from the user's wording. In this lab, "MikroTik laboratorio" maps to the configured profile `laboratorio`.
+1. Identify the device profile from the user's wording. If the target is unknown or ambiguous, call `mikrotik_devices`; do not guess an IP, hostname or profile name.
 2. Map the intent using `references/tool-routing.md`.
 3. Call the smallest MCP tool that directly satisfies the request.
 4. Interpret the returned evidence using `references/interpretation.md`.
