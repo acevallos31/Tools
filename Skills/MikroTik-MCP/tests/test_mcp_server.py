@@ -21,7 +21,6 @@ def test_server_exposes_small_tool_surface() -> None:
     names = {tool.name for tool in server._tool_manager.list_tools()}
     assert names == {
         "mikrotik_status",
-        "mikrotik_cpu_sample",
         "mikrotik_inventory",
         "mikrotik_torch_flows",
         "mikrotik_full",
@@ -44,6 +43,27 @@ def test_status_defaults_to_health() -> None:
     assert len(result.content) == 1
     assert isinstance(result.content[0], TextContent)
     assert '"operation":"health"' in result.content[0].text
+
+
+def test_status_routes_timed_cpu_to_sampler() -> None:
+    with patch(
+        "mikrotik_skill.mcp_server.run_skill",
+        return_value=_fake_result("cpu_sample"),
+    ) as mocked:
+        result = mikrotik_status(
+            "laboratorio",
+            section="health",
+            duration=30,
+            interval=1,
+        )
+
+    mocked.assert_called_once_with(
+        operation="cpu_sample",
+        device="laboratorio",
+        duration=30,
+        interval=1,
+    )
+    assert result.structured_content["operation"] == "cpu_sample"
 
 
 def test_status_routes_sections() -> None:
