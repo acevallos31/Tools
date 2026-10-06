@@ -32,6 +32,16 @@ Permitir que un agente consulte y diagnostique equipos MikroTik sin entregar al 
 - `section="session"`: telemetría de la sesión SSH.
 - `chart=true`: para una serie temporal devuelve además un PNG construido a partir de las mismas muestras.
 
+Las series temporales usan una ventana acotada de 5–120 segundos. La primera lectura se toma inmediatamente y las siguientes se programan por intervalo. Si un comando SSH tarda más que el intervalo, el backend **omite slots vencidos en vez de ejecutar muestras atrasadas en ráfaga**. Cuando el último intervalo no coincide exactamente con el fin de la ventana, espera únicamente hasta completar la duración pedida; no extiende artificialmente la observación.
+
+Cada lectura temporal contiene:
+
+- `timestamp` UTC;
+- `elapsed_seconds`;
+- el valor medido.
+
+El máximo es 120 muestras. Por ejemplo, `duration=120, interval=1` produce como máximo 120 lecturas.
+
 Torch permanece separado porque responde otra pregunta: **quién/qué genera tráfico** (hosts, protocolos, puertos y flujos), no CPU ni ancho de banda temporal de una interfaz.
 
 ## Evidencia y análisis
@@ -51,7 +61,7 @@ Reglas importantes:
 - Torch no demuestra estabilidad, causalidad ni ausencia de amenazas;
 - datos faltantes permanecen desconocidos.
 
-Los promedios, mínimos, máximos y series se calculan en Python; el LLM interpreta los resultados, no inventa las mediciones.
+Los promedios, mínimos, máximos, medianas y series se calculan en Python; el LLM interpreta los resultados, no inventa las mediciones.
 
 ## Seguridad
 
@@ -61,9 +71,10 @@ Los promedios, mínimos, máximos y series se calculan en Python; el LLM interpr
 - Torch limitado a 1–30 s.
 - Muestreos temporales limitados a 5–120 s y máximo 120 muestras.
 - Contraseñas locales protegidas con Windows DPAPI.
-- Pin SHA256 opcional de host key SSH por perfil; recomendado/requerido para uso fuera de laboratorio.
+- Pin SHA256 opcional de host key SSH por perfil; requerido como criterio de aceptación para producción.
 - Tool annotations MCP marcan todas las operaciones como read-only/closed-world.
 - Auditoría JSONL con argumentos sensibles redactados.
+- La IP/hostname y el username de administración pertenecen a la capa de transporte y no se exponen en la superficie MCP. Los resultados Torch identifican el equipo mediante el nombre lógico del perfil.
 
 Consulta `SECURITY.md` para el modelo de confianza.
 
@@ -133,6 +144,15 @@ python -m pytest -q -m integration
 La suite de integración levanta un RouterOS temporal, inicializa únicamente su credencial de laboratorio y después ejecuta consultas read-only.
 
 GitHub Actions ejecuta la suite rápida en cada PR; el sandbox RouterOS tiene workflow separado.
+
+La secuencia de aceptación es:
+
+1. unitarias/contrato MCP;
+2. sandbox RouterOS;
+3. hardware real;
+4. comportamiento Hermes + Qwen.
+
+No se debe hacer merge a `main` antes de completar esas puertas. Consulta `VALIDATION.md`.
 
 ## Estado de desarrollo
 
