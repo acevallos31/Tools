@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import statistics
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from .client import MikroTikClient
@@ -55,6 +56,7 @@ def sample_cpu(
 
     duration, interval = validate_cpu_sample_request(duration, interval)
 
+    window_started_at = datetime.now(timezone.utc).isoformat()
     started = time.perf_counter()
     next_sample = started
     readings: List[Dict[str, Any]] = []
@@ -107,6 +109,13 @@ def sample_cpu(
     values = [item["cpu_percent"] for item in readings]
 
     return {
+        "measurement": {
+            "kind": "time_series",
+            "metric": "cpu_load_percent",
+            "source": CPU_SAMPLE_COMMAND,
+            "window_started_at": window_started_at,
+            "window_completed_at": datetime.now(timezone.utc).isoformat(),
+        },
         "requested_duration_seconds": duration,
         "interval_seconds": interval,
         "actual_duration_seconds": round(time.perf_counter() - started, 3),
