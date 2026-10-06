@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from mcp.types import ImageContent, TextContent
 
-from mikrotik_skill.mcp_server import mikrotik_status, server
+from mikrotik_skill.mcp_server import mikrotik_devices, mikrotik_status, server
 
 
 def _fake_result(operation: str) -> dict:
@@ -41,6 +41,7 @@ def test_server_exposes_small_tool_surface() -> None:
     names = {tool.name for tool in tools}
 
     assert names == {
+        "mikrotik_devices",
         "mikrotik_status",
         "mikrotik_inventory",
         "mikrotik_torch_flows",
@@ -53,6 +54,29 @@ def test_server_exposes_small_tool_surface() -> None:
         assert tool.annotations.destructive_hint is False
         assert tool.annotations.open_world_hint is False
 
+
+
+def test_devices_does_not_expose_host_or_username() -> None:
+    class Profile:
+        name = "laboratorio"
+        default_interface = "ether1"
+        host_key_sha256 = "SHA256:test"
+
+    with patch(
+        "mikrotik_skill.mcp_server.list_profiles",
+        return_value=[Profile()],
+    ), patch(
+        "mikrotik_skill.mcp_server.SESSION_MANAGER.telemetry",
+        return_value={"connected": True},
+    ):
+        result = mikrotik_devices()
+
+    payload = result.structured_content
+    assert payload["device_count"] == 1
+    assert payload["devices"][0]["device"] == "laboratorio"
+    assert payload["devices"][0]["host_key_pinned"] is True
+    assert "host" not in payload["devices"][0]
+    assert "username" not in payload["devices"][0]
 
 def test_status_defaults_to_health() -> None:
     with patch(
