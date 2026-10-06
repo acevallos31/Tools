@@ -13,6 +13,7 @@ from testcontainers.core.container import DockerContainer
 
 from mikrotik_skill.client import MikroTikClient
 from mikrotik_skill.cpu_sampling import sample_cpu
+from mikrotik_skill.interface_sampling import sample_interface_traffic
 from mikrotik_skill.inventory import collect_inventory_sections
 from mikrotik_skill.inventory_parser import parse_inventory
 
@@ -239,6 +240,29 @@ def test_cpu_sampler_collects_real_window(
         assert result["sample_count"] >= 5
         assert all(
             0 <= row["cpu_percent"] <= 100
+            for row in result["readings"]
+        )
+    finally:
+        client.close()
+
+
+def test_interface_sampler_uses_real_monitor_traffic(
+    routeros_sandbox,
+) -> None:
+    client = _client(routeros_sandbox)
+    try:
+        result = sample_interface_traffic(
+            client,
+            interface="ether1",
+            duration=5,
+            interval=1,
+        )
+
+        assert result["interface"] == "ether1"
+        assert result["actual_duration_seconds"] >= 5
+        assert result["sample_count"] >= 5
+        assert all(
+            row["rx_bps"] >= 0 and row["tx_bps"] >= 0
             for row in result["readings"]
         )
     finally:
