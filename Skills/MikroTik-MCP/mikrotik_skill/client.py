@@ -173,6 +173,10 @@ class MikroTikClient:
                 "No fue posible obtener la host key SSH remota."
             )
 
+        transport.set_keepalive(
+            self.config.keepalive_interval
+        )
+
         actual = ssh_key_fingerprint_sha256(
             remote_key
         )
