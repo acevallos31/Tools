@@ -53,7 +53,7 @@ mcp_servers:
       prompts: false
 ```
 
-`include` limita las herramientas nativas que Hermes registra. Desactivar `resources` y `prompts` evita wrappers que este servidor no necesita. `supports_parallel_tool_calls: false` evita que el modelo lance dos diagnósticos temporales simultáneos contra el mismo proceso/RouterOS. El timeout de 150 s deja margen para la ventana máxima de muestreo de 120 s.
+`include` limita las herramientas nativas que Hermes registra. Desactivar `resources` y `prompts` evita wrappers que este servidor no necesita. `supports_parallel_tool_calls: false` evita que el modelo lance dos diagnósticos temporales simultáneos contra el mismo proceso/RouterOS. El timeout de 150 s deja margen para la ventana máxima de muestreo de 120 s y el tiempo de transporte.
 
 Durante desarrollo, `PYTHONPATH` sigue siendo válido. El proyecto ya tiene `pyproject.toml`; tras instalarlo en editable se puede migrar a:
 
@@ -86,6 +86,19 @@ El skill contiene:
 - gráfico → misma medición con `chart=true`;
 - Torch solo para hosts/protocolos/puertos/flujos;
 - prohibición de inventar muestras o reemplazar una capacidad MCP con un subagente.
+
+## Semántica de series temporales
+
+Una respuesta temporal válida conserva en `structuredContent`:
+
+- `requested_duration_seconds`;
+- `actual_duration_seconds`;
+- `interval_seconds`;
+- `sample_count`;
+- `statistics`;
+- `readings[]`.
+
+Cada reading incluye `timestamp` UTC y `elapsed_seconds`. Qwen debe interpretar únicamente la ventana devuelta. Si se perdieron slots porque SSH tardó más que el intervalo, el backend no inventa puntos ni ejecuta una ráfaga de consultas para rellenarlos.
 
 ## Verificación
 
@@ -121,6 +134,8 @@ Las series temporales con `chart=true` incluyen además `ImageContent` PNG. La r
 
 Los resultados grandes, como inventario completo, evitan duplicar todo el payload en texto.
 
+La dirección de administración del perfil no forma parte del resultado MCP. Para tráfico, el equipo se identifica mediante el nombre lógico del perfil; las direcciones origen/destino devueltas por Torch sí son parte de la evidencia observada.
+
 ## Problemas observados y mitigación
 
 Durante las pruebas Qwen confundió:
@@ -137,3 +152,15 @@ La mitigación ya no depende de frases mágicas:
 4. El backend calcula las estadísticas.
 5. El chart renderer usa exactamente la misma serie medida.
 6. La auditoría permite revisar la selección real de herramientas.
+
+## Secuencia de aceptación
+
+Antes de usar esta rama como estable:
+
+1. suite aislada verde;
+2. sandbox RouterOS verde;
+3. prueba en hardware real;
+4. prueba de selección natural con Hermes/Qwen;
+5. revisión del audit log.
+
+Los comandos y prompts de aceptación están en `VALIDATION.md`.
