@@ -11,6 +11,8 @@ from .client import SSHHostKeyMismatch
 def classify_error(exc: Exception) -> Dict[str, Any]:
     """Return a stable, model-readable error classification."""
 
+    details: Dict[str, Any] = {}
+
     if isinstance(exc, SSHHostKeyMismatch):
         code = "SSH_HOST_KEY_MISMATCH"
         retryable = False
@@ -18,6 +20,10 @@ def classify_error(exc: Exception) -> Dict[str, Any]:
             "Detén la conexión y verifica fuera de banda el fingerprint SSH "
             "del router antes de actualizar el pin del perfil."
         )
+        details = {
+            "expected_fingerprint": exc.expected,
+            "actual_fingerprint": exc.actual,
+        }
     elif isinstance(exc, FileNotFoundError):
         code = "LOCAL_RESOURCE_NOT_FOUND"
         retryable = False
@@ -68,4 +74,5 @@ def classify_error(exc: Exception) -> Dict[str, Any]:
         "message": str(exc),
         "retryable": retryable,
         "suggested_action": suggestion,
+        "details": details,
     }
