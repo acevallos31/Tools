@@ -16,6 +16,10 @@ from .traffic import analyze_device_traffic
 
 ALLOWED_OPERATIONS = {
     "inventory",
+    "health",
+    "interfaces",
+    "network",
+    "session_status",
     "traffic",
     "full",
 }
@@ -61,6 +65,77 @@ def _collect_and_analyze_inventory(
     }
 
 
+def _inventory_view(
+    inventory: Dict[str, Any],
+    operation: str,
+) -> Dict[str, Any]:
+    """Construye vistas compactas para herramientas MCP especializadas."""
+
+    data = inventory.get("data", {})
+    analysis = inventory.get("analysis", {})
+    summary = analysis.get("summary", {})
+    findings = analysis.get("findings", [])
+
+    if operation == "health":
+        health_codes = {
+            "cpu_load_warning",
+            "cpu_load_critical",
+            "routerboard_firmware_difference",
+        }
+        return {
+            "device": data.get("device", {}),
+            "health": data.get("health", {}),
+            "findings": [
+                item
+                for item in findings
+                if item.get("code") in health_codes
+            ],
+        }
+
+    if operation == "interfaces":
+        return {
+            "interfaces": data.get("network", {}).get("interfaces", []),
+            "summary": summary.get("interfaces", {}),
+            "findings": [
+                item
+                for item in findings
+                if str(item.get("code", "")).startswith("interface_")
+            ],
+        }
+
+    if operation == "network":
+        network = data.get("network", {})
+        return {
+            "addresses": network.get("addresses", []),
+            "routes": network.get("routes", []),
+            "connection_tracking": data.get("connection_tracking", {}),
+            "findings": [
+                item
+                for item in findings
+                if item.get("code") in {
+                    "default_route_missing",
+                    "connection_tracking_zero_entries",
+                }
+            ],
+        }
+
+    raise ValueError(f"Vista de inventario no soportada: {operation!r}")
+
+
+def _session_status(device: str) -> Dict[str, Any]:
+    """Devuelve telemetría segura sin abrir una conexión SSH nueva."""
+
+    profile = load_profile(device)
+    telemetry = SESSION_MANAGER.telemetry(device)
+
+    return {
+        "status": "ok",
+        "operation": "session_status",
+        "device": profile.name,
+        "session": telemetry,
+    }
+
+
 def run_skill(
     operation: str,
     password: Optional[str] = None,
@@ -90,6 +165,13 @@ def run_skill(
     operation = _validate_operation(
         operation
     )
+
+    if operation == "session_status":
+        if not device:
+            raise ValueError(
+                "session_status requiere un perfil de dispositivo."
+            )
+        return _session_status(device)
 
     started_at = time.perf_counter()
 
@@ -165,12 +247,23 @@ def run_skill(
         if not managed_session:
             client.connect()
 
-        if operation == "inventory":
-            result["inventory"] = (
-                _collect_and_analyze_inventory(
-                    client
-                )
+        if operation in {
+            "inventory",
+            "health",
+            "interfaces",
+            "network",
+        }:
+            inventory = _collect_and_analyze_inventory(
+                client
             )
+
+            if operation == "inventory":
+                result["inventory"] = inventory
+            else:
+                result[operation] = _inventory_view(
+                    inventory,
+                    operation,
+                )
 
         elif operation == "traffic":
             result["traffic"] = (
