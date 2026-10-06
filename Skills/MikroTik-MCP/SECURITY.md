@@ -28,11 +28,13 @@ Guardrails principales:
 - perfiles: caracteres restringidos;
 - interfaces: caracteres restringidos;
 - CPU/interface sampling: 5–120 s;
-- intervalo mínimo: 1 s;
+- intervalo: 1–120 s;
 - máximo 120 muestras;
 - Torch: 1–30 s.
 
 El backend vuelve a validar las operaciones críticas aunque el cliente ya haya validado el schema.
+
+Los samplers no intentan "ponerse al día" ejecutando varias consultas seguidas cuando SSH tarda más que el intervalo. Los slots vencidos se omiten, preservando una observación temporal real en vez de fabricar densidad de muestras.
 
 ## Tool annotations
 
@@ -56,6 +58,12 @@ Consecuencias:
 - la contraseña no aparece como argumento MCP;
 - la contraseña descifrada se cachea únicamente en memoria mientras vive el proceso.
 
+## Metadatos de administración
+
+El host/IP, puerto y username del perfil son datos de transporte SSH, no datos model-facing.
+
+`mikrotik_devices` no devuelve host ni username. Los reportes de Torch reciben el nombre lógico del dispositivo desde el orquestador y **no derivan el target desde `client.host`**. Las capturas y respuestas MCP pueden contener IPs de tráfico observadas por Torch porque esas IPs son precisamente evidencia de flujo; esto es distinto de revelar la dirección de administración usada por Paramiko.
+
 ## SSH host key
 
 Un perfil puede incluir:
@@ -68,7 +76,11 @@ Un perfil puede incluir:
 
 Cuando hay pin, se verifica durante el intercambio de host key **antes de autenticación**. Un mismatch aborta la conexión.
 
-Sin pin se conserva un modo compatible con laboratorio que carga `known_hosts` y acepta hosts desconocidos. Para uso de producción se debe configurar un pin verificado fuera de banda.
+Sin pin se conserva un modo compatible con laboratorio que carga `known_hosts` y acepta hosts desconocidos. Esto es una compatibilidad de laboratorio, no el objetivo de producción.
+
+### Puerta de producción
+
+Un perfil no debe aprobarse para producción hasta tener un `host_key_sha256` obtenido y verificado fuera de banda. La validación real debe confirmar además que un fingerprint incorrecto produce `SSH_HOST_KEY_MISMATCH` y no cae a autenticación normal.
 
 La telemetría de sesión indica fingerprint observado y si el perfil usa verificación explícita.
 
