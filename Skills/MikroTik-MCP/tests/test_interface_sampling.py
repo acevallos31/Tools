@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from mikrotik_skill.client import CommandResult
 from mikrotik_skill.interface_sampling import (
     _parse_monitor_traffic,
@@ -55,13 +57,22 @@ def test_parse_monitor_traffic_rates() -> None:
 
 def test_interface_sample_validation() -> None:
     assert validate_interface_sample_request(30, 1) == (30, 1)
+    assert validate_interface_sample_request(120, 1) == (120, 1)
+
+    with pytest.raises(ValueError):
+        validate_interface_sample_request(4, 1)
+
+    with pytest.raises(ValueError):
+        validate_interface_sample_request(30, 0)
+
+    with pytest.raises(ValueError):
+        validate_interface_sample_request(30, 121)
 
 
-def test_interface_sampling_statistics() -> None:
+def test_interface_sampling_statistics_and_timestamps() -> None:
     client = FakeClient(
         [
             ("1kbps", "500bps"),
-            ("2kbps", "1kbps"),
             ("3kbps", "1500bps"),
         ]
     )
@@ -84,11 +95,53 @@ def test_interface_sampling_statistics() -> None:
             interval=1,
         )
 
-    assert result["sample_count"] == 3
-    assert result["statistics"]["rx_bps"]["average"] == 2000.0
-    assert result["statistics"]["rx_bps"]["maximum"] == 3000
+    assert result["sample_count"] == 2
+    assert result["statistics"]["rx_bps"] == {
+        "minimum": 1000,
+        "maximum": 3000,
+        "average": 2000.0,
+        "median": 2000.0,
+        "first": 1000,
+        "last": 3000,
+    }
     assert result["statistics"]["tx_bps"]["average"] == 1000.0
+    assert result["statistics"]["rx_packets_per_second"]["average"] == 10.0
+    assert (
+        result["statistics"]["tx_queue_drops_per_second"]["observed_nonzero"]
+        is False
+    )
+    assert all(row["timestamp"] for row in result["readings"])
+    assert [row["elapsed_seconds"] for row in result["readings"]] == [0.0, 1.0]
+    assert result["actual_duration_seconds"] == 2.0
     assert all(
         command == "/interface monitor-traffic ether1 once"
         for command in client.commands
     )
+
+
+def test_interface_sampling_does_not_overshoot_non_divisible_window() -> None:
+    client = FakeClient(
+        [
+            ("1kbps", "500bps"),
+            ("2kbps", "1kbps"),
+        ]
+    )
+    clock = FakeClock()
+
+    with patch(
+        "mikrotik_skill.interface_sampling.time.perf_counter",
+        side_effect=clock.perf_counter,
+    ), patch(
+        "mikrotik_skill.interface_sampling.time.sleep",
+        side_effect=clock.sleep,
+    ):
+        result = sample_interface_traffic(
+            client,
+            "ether1",
+            duration=5,
+            interval=4,
+        )
+
+    assert result["sample_count"] == 2
+    assert [row["elapsed_seconds"] for row in result["readings"]] == [0.0, 4.0]
+    assert result["actual_duration_seconds"] == 5.0
