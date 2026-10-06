@@ -7,7 +7,9 @@ from typing import Any, Dict, Optional
 from .client import MikroTikClient
 from .config import CONFIG
 from .cpu_sampling import sample_cpu
-from .inventory import collect_inventory
+from .errors import classify_error
+from .interface_sampling import sample_interface_traffic
+from .inventory import collect_inventory, collect_inventory_sections
 from .inventory_analyzer import analyze_inventory
 from .inventory_parser import parse_inventory
 from .profiles import load_profile
@@ -21,6 +23,7 @@ ALLOWED_OPERATIONS = {
     "interfaces",
     "network",
     "cpu_sample",
+    "interface_sample",
     "session_status",
     "traffic",
     "full",
@@ -46,12 +49,17 @@ def _validate_operation(operation: str) -> str:
 
 def _collect_and_analyze_inventory(
     client: MikroTikClient,
+    sections: Optional[tuple[str, ...]] = None,
 ) -> Dict[str, Any]:
     """
     Captura, normaliza y analiza el inventario del MikroTik.
     """
 
-    raw_inventory = collect_inventory(client)
+    raw_inventory = (
+        collect_inventory(client)
+        if sections is None
+        else collect_inventory_sections(client, sections)
+    )
 
     parsed_inventory = parse_inventory(
         raw_inventory
@@ -87,6 +95,13 @@ def _inventory_view(
         return {
             "device": data.get("device", {}),
             "health": data.get("health", {}),
+            "measurement": {
+                "kind": "point_in_time",
+                "note": (
+                    "cpu_load_percent es una muestra instantánea; no demuestra "
+                    "carga sostenida sin una ventana temporal."
+                ),
+            },
             "findings": [
                 item
                 for item in findings
@@ -98,6 +113,13 @@ def _inventory_view(
         return {
             "interfaces": data.get("network", {}).get("interfaces", []),
             "summary": summary.get("interfaces", {}),
+            "measurement": {
+                "kind": "cumulative_counters",
+                "note": (
+                    "Los contadores rx/tx bytes y packets son acumulados. "
+                    "No representan el ancho de banda actual."
+                ),
+            },
             "findings": [
                 item
                 for item in findings
@@ -111,6 +133,10 @@ def _inventory_view(
             "addresses": network.get("addresses", []),
             "routes": network.get("routes", []),
             "connection_tracking": data.get("connection_tracking", {}),
+            "measurement": {
+                "kind": "point_in_time",
+                "note": "Snapshot de direccionamiento, rutas y connection tracking.",
+            },
             "findings": [
                 item
                 for item in findings
@@ -256,8 +282,15 @@ def run_skill(
             "interfaces",
             "network",
         }:
+            section_map = {
+                "health": ("identity", "resources", "routerboard"),
+                "interfaces": ("interfaces", "interface_stats"),
+                "network": ("addresses", "routes", "connection_tracking"),
+            }
+
             inventory = _collect_and_analyze_inventory(
-                client
+                client,
+                sections=section_map.get(operation),
             )
 
             if operation == "inventory":
@@ -271,6 +304,18 @@ def run_skill(
         elif operation == "cpu_sample":
             result["cpu_sample"] = sample_cpu(
                 client=client,
+                duration=duration if duration is not None else 30,
+                interval=interval if interval is not None else 1,
+            )
+
+        elif operation == "interface_sample":
+            if not interface:
+                raise ValueError(
+                    "interface_sample requiere una interfaz."
+                )
+            result["interface_sample"] = sample_interface_traffic(
+                client=client,
+                interface=interface,
                 duration=duration if duration is not None else 30,
                 interval=interval if interval is not None else 1,
             )
@@ -301,10 +346,7 @@ def run_skill(
 
     except Exception as exc:
         result["status"] = "error"
-        result["error"] = {
-            "type": type(exc).__name__,
-            "message": str(exc),
-        }
+        result["error"] = classify_error(exc)
 
     finally:
         # Las sesiones administradas deben permanecer
