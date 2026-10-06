@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import statistics
 import time
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ from .validation import validate_interface_name
 MIN_DURATION_SECONDS = 5
 MAX_DURATION_SECONDS = 120
 MIN_INTERVAL_SECONDS = 1
+MAX_INTERVAL_SECONDS = 120
 MAX_SAMPLES = 120
 
 
@@ -28,12 +30,13 @@ def validate_interface_sample_request(
             f"duration debe estar entre {MIN_DURATION_SECONDS} y "
             f"{MAX_DURATION_SECONDS} segundos."
         )
-    if interval < MIN_INTERVAL_SECONDS:
+    if not MIN_INTERVAL_SECONDS <= interval <= MAX_INTERVAL_SECONDS:
         raise ValueError(
-            f"interval debe ser al menos {MIN_INTERVAL_SECONDS} segundo."
+            f"interval debe estar entre {MIN_INTERVAL_SECONDS} y "
+            f"{MAX_INTERVAL_SECONDS} segundos."
         )
 
-    expected = (duration // interval) + 1
+    expected = math.ceil(duration / interval)
     if expected > MAX_SAMPLES:
         raise ValueError(
             f"La solicitud excede el máximo de {MAX_SAMPLES} muestras."
@@ -95,6 +98,23 @@ def _parse_monitor_traffic(stdout: str) -> Dict[str, int]:
     }
 
 
+def _sleep_until(deadline: float) -> None:
+    remaining = deadline - time.perf_counter()
+    if remaining > 0:
+        time.sleep(remaining)
+
+
+def _statistics(values: list[int]) -> Dict[str, float | int]:
+    return {
+        "minimum": min(values),
+        "maximum": max(values),
+        "average": round(statistics.fmean(values), 2),
+        "median": round(statistics.median(values), 2),
+        "first": values[0],
+        "last": values[-1],
+    }
+
+
 def sample_interface_traffic(
     client: MikroTikClient,
     interface: str,
@@ -108,13 +128,12 @@ def sample_interface_traffic(
 
     window_started_at = datetime.now(timezone.utc).isoformat()
     started = time.perf_counter()
+    deadline = started + duration
     next_sample = started
     readings: List[Dict[str, Any]] = []
 
     while True:
-        now = time.perf_counter()
-        if now < next_sample:
-            time.sleep(next_sample - now)
+        _sleep_until(next_sample)
 
         sample_started = time.perf_counter()
         result = client.execute(
@@ -130,21 +149,55 @@ def sample_interface_traffic(
         rates = _parse_monitor_traffic(result.stdout)
         readings.append(
             {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "elapsed_seconds": round(sample_started - started, 3),
                 **rates,
             }
         )
 
-        if sample_started - started >= duration:
+        after_sample = time.perf_counter()
+        if after_sample >= deadline:
             break
 
-        next_sample += interval
-        if next_sample <= time.perf_counter():
-            next_sample = time.perf_counter() + interval
+        candidate = next_sample + interval
 
-    rx_values = [item["rx_bps"] for item in readings]
-    tx_values = [item["tx_bps"] for item in readings]
-    drop_values = [item["tx_queue_drops_per_second"] for item in readings]
+        if candidate >= deadline:
+            _sleep_until(deadline)
+            break
+
+        # Si el comando tardó más que el intervalo, omitimos slots vencidos
+        # en lugar de generar una ráfaga de mediciones atrasadas.
+        if candidate <= after_sample:
+            candidate = after_sample + interval
+
+        if candidate >= deadline:
+            _sleep_until(deadline)
+            break
+
+        next_sample = candidate
+
+    metric_values = {
+        "rx_bps": [item["rx_bps"] for item in readings],
+        "tx_bps": [item["tx_bps"] for item in readings],
+        "rx_packets_per_second": [
+            item["rx_packets_per_second"] for item in readings
+        ],
+        "tx_packets_per_second": [
+            item["tx_packets_per_second"] for item in readings
+        ],
+        "tx_queue_drops_per_second": [
+            item["tx_queue_drops_per_second"] for item in readings
+        ],
+    }
+
+    statistics_payload = {
+        name: _statistics(values)
+        for name, values in metric_values.items()
+    }
+    statistics_payload["tx_queue_drops_per_second"]["observed_nonzero"] = any(
+        value > 0
+        for value in metric_values["tx_queue_drops_per_second"]
+    )
 
     return {
         "measurement": {
@@ -159,22 +212,7 @@ def sample_interface_traffic(
         "interval_seconds": interval,
         "actual_duration_seconds": round(time.perf_counter() - started, 3),
         "sample_count": len(readings),
-        "statistics": {
-            "rx_bps": {
-                "minimum": min(rx_values),
-                "maximum": max(rx_values),
-                "average": round(statistics.fmean(rx_values), 2),
-            },
-            "tx_bps": {
-                "minimum": min(tx_values),
-                "maximum": max(tx_values),
-                "average": round(statistics.fmean(tx_values), 2),
-            },
-            "tx_queue_drops_per_second": {
-                "maximum": max(drop_values),
-                "observed_nonzero": any(value > 0 for value in drop_values),
-            },
-        },
+        "statistics": statistics_payload,
         "readings": readings,
         "evidence_note": (
             "Estas tasas provienen de /interface monitor-traffic y corresponden "
