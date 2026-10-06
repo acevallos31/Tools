@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from typing import Optional
+
+from .app_paths import profiles_dir, secrets_dir
 
 
 PROFILE_NAME_ALLOWED = set(
@@ -21,17 +22,7 @@ class DeviceProfile:
     port: int
     username: str
     default_interface: str
-
-
-def _base_dir() -> Path:
-    appdata = os.getenv("APPDATA")
-
-    if not appdata:
-        raise RuntimeError(
-            "La variable APPDATA no está disponible."
-        )
-
-    return Path(appdata) / "MikroTikSkill"
+    host_key_sha256: Optional[str] = None
 
 
 def _validate_profile_name(name: str) -> str:
@@ -54,8 +45,7 @@ def load_profile(name: str) -> DeviceProfile:
     name = _validate_profile_name(name)
 
     path = (
-        _base_dir()
-        / "profiles"
+        profiles_dir()
         / f"{name}.json"
     )
 
@@ -97,6 +87,12 @@ def load_profile(name: str) -> DeviceProfile:
             f"Puerto inválido: {port}"
         )
 
+    host_key_sha256 = data.get("host_key_sha256")
+    if host_key_sha256 is not None:
+        host_key_sha256 = str(host_key_sha256).strip()
+        if not host_key_sha256:
+            host_key_sha256 = None
+
     return DeviceProfile(
         name=name,
         host=str(data["host"]),
@@ -105,15 +101,35 @@ def load_profile(name: str) -> DeviceProfile:
         default_interface=str(
             data["default_interface"]
         ),
+        host_key_sha256=host_key_sha256,
     )
+
+
+def list_profiles() -> list[DeviceProfile]:
+    """List valid local device profiles without reading or exposing secrets."""
+
+    directory = profiles_dir()
+    if not directory.is_dir():
+        return []
+
+    profiles: list[DeviceProfile] = []
+    for path in sorted(directory.glob("*.json")):
+        try:
+            profiles.append(
+                load_profile(path.stem)
+            )
+        except Exception:
+            # A malformed profile should not prevent discovery of the others.
+            continue
+
+    return profiles
 
 
 def load_password(name: str) -> str:
     name = _validate_profile_name(name)
 
     path = (
-        _base_dir()
-        / "secrets"
+        secrets_dir()
         / f"{name}-password.dat"
     )
 
@@ -154,8 +170,7 @@ finally {{
     if result.returncode != 0:
         raise RuntimeError(
             "No fue posible descifrar el secreto "
-            f"del perfil {name!r}: "
-            f"{result.stderr.strip()}"
+            f"del perfil {name!r} con el usuario de Windows actual."
         )
 
     password = result.stdout.strip()

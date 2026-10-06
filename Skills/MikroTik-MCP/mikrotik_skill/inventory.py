@@ -25,13 +25,22 @@ def result_to_dict(result: CommandResult) -> Dict:
     }
 
 
-def collect_inventory(
+def collect_inventory_sections(
     client: MikroTikClient,
+    sections: list[str] | tuple[str, ...] | set[str],
 ) -> Dict:
+    """Collect only explicitly requested inventory sections."""
+
+    unknown = set(sections) - set(INVENTORY_COMMANDS)
+    if unknown:
+        raise ValueError(
+            f"Secciones de inventario desconocidas: {sorted(unknown)}"
+        )
 
     data = {}
 
-    for name, command in INVENTORY_COMMANDS.items():
+    for name in sections:
+        command = INVENTORY_COMMANDS[name]
 
         try:
             result = client.execute(command)
@@ -51,3 +60,12 @@ def collect_inventory(
             }
 
     return data
+
+
+def collect_inventory(
+    client: MikroTikClient,
+) -> Dict:
+    return collect_inventory_sections(
+        client,
+        tuple(INVENTORY_COMMANDS),
+    )

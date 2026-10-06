@@ -1,0 +1,48 @@
+name: MikroTik MCP tests
+
+on:
+  pull_request:
+    paths:
+      - "Skills/MikroTik-MCP/**"
+      - ".github/workflows/mikrotik-mcp.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "Skills/MikroTik-MCP/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Skills/MikroTik-MCP
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            Skills/MikroTik-MCP/requirements.txt
+            Skills/MikroTik-MCP/requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Install package
+        run: python -m pip install -e . --no-deps
+
+      - name: Compile
+        run: python -m compileall -q mikrotik_skill
+
+      - name: MCP import smoke
+        run: python -c "from mikrotik_skill.mcp_server import server; print(len(server._tool_manager.list_tools()))"
+
+      - name: Tests
+        run: python -m pytest -q -m "not integration and not hardware"
