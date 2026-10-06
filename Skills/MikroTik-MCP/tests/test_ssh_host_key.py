@@ -5,6 +5,7 @@ import pytest
 
 from mikrotik_skill.client import (
     PinnedHostKeyPolicy,
+    SSHHostKeyMismatch,
     normalize_fingerprint,
     ssh_key_fingerprint_sha256,
 )
@@ -39,5 +40,8 @@ def test_pinned_policy_rejects_mismatch() -> None:
         ssh_key_fingerprint_sha256(expected)
     )
 
-    with pytest.raises(paramiko.BadHostKeyException):
+    with pytest.raises(SSHHostKeyMismatch) as exc_info:
         policy.missing_host_key(None, "router", actual)  # type: ignore[arg-type]
+
+    assert exc_info.value.expected == ssh_key_fingerprint_sha256(expected)
+    assert exc_info.value.actual == ssh_key_fingerprint_sha256(actual)
