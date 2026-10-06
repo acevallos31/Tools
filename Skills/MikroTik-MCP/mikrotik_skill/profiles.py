@@ -5,6 +5,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 
 PROFILE_NAME_ALLOWED = set(
@@ -21,6 +22,7 @@ class DeviceProfile:
     port: int
     username: str
     default_interface: str
+    host_key_sha256: Optional[str] = None
 
 
 def _base_dir() -> Path:
@@ -97,6 +99,12 @@ def load_profile(name: str) -> DeviceProfile:
             f"Puerto inválido: {port}"
         )
 
+    host_key_sha256 = data.get("host_key_sha256")
+    if host_key_sha256 is not None:
+        host_key_sha256 = str(host_key_sha256).strip()
+        if not host_key_sha256:
+            host_key_sha256 = None
+
     return DeviceProfile(
         name=name,
         host=str(data["host"]),
@@ -105,6 +113,7 @@ def load_profile(name: str) -> DeviceProfile:
         default_interface=str(
             data["default_interface"]
         ),
+        host_key_sha256=host_key_sha256,
     )
 
 
