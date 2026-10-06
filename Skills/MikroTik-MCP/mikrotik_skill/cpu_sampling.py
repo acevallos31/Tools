@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import statistics
 import time
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ CPU_SAMPLE_COMMAND = "/system resource print"
 MIN_DURATION_SECONDS = 5
 MAX_DURATION_SECONDS = 120
 MIN_INTERVAL_SECONDS = 1
+MAX_INTERVAL_SECONDS = 120
 MAX_SAMPLES = 120
 CPU_MIN_PERCENT = 0
 CPU_MAX_PERCENT = 100
@@ -33,18 +35,25 @@ def validate_cpu_sample_request(
             f"{MAX_DURATION_SECONDS} segundos."
         )
 
-    if interval < MIN_INTERVAL_SECONDS:
+    if not MIN_INTERVAL_SECONDS <= interval <= MAX_INTERVAL_SECONDS:
         raise ValueError(
-            f"interval debe ser al menos {MIN_INTERVAL_SECONDS} segundo."
+            f"interval debe estar entre {MIN_INTERVAL_SECONDS} y "
+            f"{MAX_INTERVAL_SECONDS} segundos."
         )
 
-    expected = (duration // interval) + 1
+    expected = math.ceil(duration / interval)
     if expected > MAX_SAMPLES:
         raise ValueError(
             f"La solicitud excede el máximo de {MAX_SAMPLES} muestras."
         )
 
     return duration, interval
+
+
+def _sleep_until(deadline: float) -> None:
+    remaining = deadline - time.perf_counter()
+    if remaining > 0:
+        time.sleep(remaining)
 
 
 def sample_cpu(
@@ -58,13 +67,12 @@ def sample_cpu(
 
     window_started_at = datetime.now(timezone.utc).isoformat()
     started = time.perf_counter()
+    deadline = started + duration
     next_sample = started
     readings: List[Dict[str, Any]] = []
 
     while True:
-        now = time.perf_counter()
-        if now < next_sample:
-            time.sleep(next_sample - now)
+        _sleep_until(next_sample)
 
         sample_started = time.perf_counter()
         result = client.execute(CPU_SAMPLE_COMMAND)
@@ -87,24 +95,35 @@ def sample_cpu(
             raise RuntimeError(
                 f"Valor cpu-load fuera de rango: {cpu}"
             )
-        elapsed = sample_started - started
 
         readings.append(
             {
-                "elapsed_seconds": round(elapsed, 3),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "elapsed_seconds": round(sample_started - started, 3),
                 "cpu_percent": cpu,
             }
         )
 
-        if sample_started - started >= duration:
+        after_sample = time.perf_counter()
+        if after_sample >= deadline:
             break
 
-        next_sample += interval
+        candidate = next_sample + interval
 
-        # Si SSH tardó más que el intervalo, no intentamos recuperar
-        # muestras atrasadas en ráfaga: reanudamos desde el tiempo actual.
-        if next_sample <= time.perf_counter():
-            next_sample = time.perf_counter() + interval
+        if candidate >= deadline:
+            _sleep_until(deadline)
+            break
+
+        # Si SSH tardó más que el intervalo, no recuperamos muestras atrasadas
+        # en ráfaga. La siguiente se agenda desde el tiempo actual.
+        if candidate <= after_sample:
+            candidate = after_sample + interval
+
+        if candidate >= deadline:
+            _sleep_until(deadline)
+            break
+
+        next_sample = candidate
 
     values = [item["cpu_percent"] for item in readings]
 
