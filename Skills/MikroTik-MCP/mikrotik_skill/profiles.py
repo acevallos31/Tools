@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
+
+from .app_paths import profiles_dir, secrets_dir
 
 
 PROFILE_NAME_ALLOWED = set(
@@ -23,17 +23,6 @@ class DeviceProfile:
     username: str
     default_interface: str
     host_key_sha256: Optional[str] = None
-
-
-def _base_dir() -> Path:
-    appdata = os.getenv("APPDATA")
-
-    if not appdata:
-        raise RuntimeError(
-            "La variable APPDATA no está disponible."
-        )
-
-    return Path(appdata) / "MikroTikSkill"
 
 
 def _validate_profile_name(name: str) -> str:
@@ -56,8 +45,7 @@ def load_profile(name: str) -> DeviceProfile:
     name = _validate_profile_name(name)
 
     path = (
-        _base_dir()
-        / "profiles"
+        profiles_dir()
         / f"{name}.json"
     )
 
@@ -121,7 +109,7 @@ def load_profile(name: str) -> DeviceProfile:
 def list_profiles() -> list[DeviceProfile]:
     """List valid local device profiles without reading or exposing secrets."""
 
-    directory = _base_dir() / "profiles"
+    directory = profiles_dir()
     if not directory.is_dir():
         return []
 
@@ -141,8 +129,7 @@ def load_password(name: str) -> str:
     name = _validate_profile_name(name)
 
     path = (
-        _base_dir()
-        / "secrets"
+        secrets_dir()
         / f"{name}-password.dat"
     )
 
