@@ -9,6 +9,10 @@
 
 ## Herramientas descubiertas
 
+- mikrotik_health
+- mikrotik_interfaces
+- mikrotik_network
+- mikrotik_session_status
 - mikrotik_inventory
 - mikrotik_traffic
 - mikrotik_full
@@ -36,3 +40,7 @@ Tráfico: el agente solicitó una captura Torch de 5 segundos y presentó protoc
 ## Mejora pendiente
 
 Crear pyproject.toml e instalar mikrotik_skill en el entorno virtual para eliminar PYTHONPATH y facilitar su reutilización desde otros clientes MCP.
+
+## Respuestas estructuradas
+
+Desde la versión 0.4.0 del servidor, las herramientas devuelven `CallToolResult` con `content` vacío y el resultado en `structuredContent`. Esto evita duplicar payloads en Hermes. Las herramientas granulares añadidas en 0.5.0 reducen además el volumen de datos que el LLM debe procesar.
