@@ -5,11 +5,13 @@ from typing import Any, Dict
 
 import paramiko
 
+from .client import SSHHostKeyMismatch
+
 
 def classify_error(exc: Exception) -> Dict[str, Any]:
     """Return a stable, model-readable error classification."""
 
-    if isinstance(exc, paramiko.BadHostKeyException):
+    if isinstance(exc, SSHHostKeyMismatch):
         code = "SSH_HOST_KEY_MISMATCH"
         retryable = False
         suggestion = (
