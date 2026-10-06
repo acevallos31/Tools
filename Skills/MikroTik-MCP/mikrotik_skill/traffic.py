@@ -29,16 +29,22 @@ def capture_torch(
     client: MikroTikClient,
     interface: Optional[str] = None,
     duration: Optional[int] = None,
+    target: Optional[str] = None,
 ) -> TorchResult:
     """
     Ejecuta MikroTik Torch de forma controlada.
 
     La duración está limitada para evitar capturas excesivamente
     largas cuando la función sea invocada por Hermes/Qwen.
+
+    target es una etiqueta lógica (por ejemplo, el nombre del perfil).
+    Nunca se deriva de client.host para no exponer la dirección de
+    administración en resultados model-facing.
     """
 
     interface = interface or CONFIG.default_interface
     duration = duration or CONFIG.torch_duration
+    logical_target = (target or "direct").strip() or "direct"
 
     # Guardrail: limitar duración de Torch.
     if not 1 <= duration <= 30:
@@ -65,7 +71,7 @@ def capture_torch(
             if result.ok and result.stdout
             else "empty"
         ),
-        target=client.host,
+        target=logical_target,
         interface=interface,
         duration_seconds=duration,
         timestamp=datetime.now().isoformat(),
@@ -117,6 +123,7 @@ def analyze_device_traffic(
     client: MikroTikClient,
     interface: Optional[str] = None,
     duration: Optional[int] = None,
+    target: Optional[str] = None,
 ) -> dict:
     """
     Ejecuta el pipeline completo de análisis de tráfico.
@@ -164,6 +171,7 @@ def analyze_device_traffic(
         client=client,
         interface=interface,
         duration=duration,
+        target=target,
     )
 
     if capture.status != "ok":
