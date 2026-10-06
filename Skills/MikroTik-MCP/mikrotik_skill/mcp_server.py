@@ -1,45 +1,93 @@
 from __future__ import annotations
 
 import atexit
+import base64
 import json
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Optional
 
 from mcp.server.mcpserver import MCPServer
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
+from pydantic import Field
 
+from .charting import render_cpu_chart, render_interface_chart
+from .observability import audited_call
 from .session_manager import SESSION_MANAGER
 from .skill import run_skill
 
 
 StatusSection = Literal["health", "interfaces", "network", "session"]
+DeviceName = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_-]+$",
+        description="Nombre de un perfil local preconfigurado, por ejemplo laboratorio.",
+    ),
+]
+InterfaceName = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.:@-]+$",
+        description="Nombre de interfaz RouterOS, por ejemplo ether1 o bridge1.",
+    ),
+]
+TimedDuration = Literal[0] | Annotated[
+    int,
+    Field(
+        ge=5,
+        le=120,
+        description="0 = lectura puntual; 5-120 = ventana de muestreo en segundos.",
+    ),
+]
+SampleInterval = Annotated[
+    int,
+    Field(
+        ge=1,
+        le=120,
+        description="Segundos entre muestras temporales.",
+    ),
+]
+TorchDuration = Annotated[
+    int,
+    Field(
+        ge=1,
+        le=30,
+        description="Duración de la captura Torch en segundos.",
+    ),
+]
+
+
+READ_ONLY = ToolAnnotations(
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    open_world_hint=False,
+)
 
 
 server = MCPServer(
     name="mikrotik-skill",
-    title="MikroTik Network Skill",
+    title="MikroTik Network Diagnostics",
     description=(
-        "Consulta segura y de solo lectura de dispositivos MikroTik RouterOS "
-        "mediante perfiles locales preconfigurados."
+        "Diagnóstico tipado y de solo lectura para MikroTik RouterOS mediante "
+        "perfiles locales preconfigurados."
     ),
     instructions=(
-        "Para cualquier pregunta sobre el estado actual de un MikroTik usa "
-        "mikrotik_status. CPU, memoria, almacenamiento, uptime y firmware "
-        "corresponden a section=health; puertos, interfaces, enlaces y "
-        "contadores a section=interfaces; IP, rutas, gateway y connection "
-        "tracking a section=network; estado o reutilización SSH a "
-        "section=session. Si el usuario pide analizar, observar, muestrear o graficar CPU durante varios segundos usa mikrotik_cpu_sample. Usa mikrotik_inventory únicamente cuando el usuario "
-        "pida inventario completo, mikrotik_torch_flows para Torch y mikrotik_full "
-        "solo cuando necesite inventario y tráfico juntos. Todas las "
-        "herramientas son de solo lectura. Nunca afirmes que no existe acceso "
-        "al dispositivo sin intentar primero mikrotik_status cuando la "
-        "pregunta sea sobre su estado."
+        "Usa mikrotik_status para estado y series temporales de CPU o interfaces. "
+        "Usa mikrotik_torch_flows solo para hosts, protocolos, puertos y flujos. "
+        "Usa mikrotik_inventory solo cuando se necesite inventario completo. "
+        "Los contadores acumulados no son ancho de banda actual y una lectura "
+        "instantánea de CPU no demuestra carga sostenida."
     ),
-    version="0.8.0",
+    version="0.8.0-dev",
 )
 
 
 def _structured_result(result: dict[str, Any]) -> CallToolResult:
-    """Resultado grande: structuredContent sin duplicar el payload como texto."""
+    """Large result: avoid duplicating the full payload into model text."""
 
     return CallToolResult(
         content=[],
@@ -48,8 +96,12 @@ def _structured_result(result: dict[str, Any]) -> CallToolResult:
     )
 
 
-def _compact_result(result: dict[str, Any]) -> CallToolResult:
-    """Resultado compacto visible al modelo y disponible también como JSON."""
+def _compact_result(
+    result: dict[str, Any],
+    *,
+    image_png: bytes | None = None,
+) -> CallToolResult:
+    """Compact result: text for the model, structured data for capable clients."""
 
     text = json.dumps(
         result,
@@ -58,126 +110,218 @@ def _compact_result(result: dict[str, Any]) -> CallToolResult:
         default=str,
     )
 
-    return CallToolResult(
-        content=[
-            TextContent(
-                type="text",
-                text=text,
+    content: list[Any] = [
+        TextContent(
+            type="text",
+            text=text,
+        )
+    ]
+
+    if image_png is not None:
+        content.append(
+            ImageContent(
+                type="image",
+                data=base64.b64encode(image_png).decode("ascii"),
+                mime_type="image/png",
             )
-        ],
+        )
+
+    return CallToolResult(
+        content=content,
         structuredContent=result,
         isError=result.get("status") == "error",
     )
 
 
+def _filter_interface(result: dict[str, Any], interface: str) -> dict[str, Any]:
+    payload = result.get("interfaces")
+    if not isinstance(payload, dict):
+        return result
+
+    rows = payload.get("interfaces")
+    if not isinstance(rows, list):
+        return result
+
+    filtered = [
+        row
+        for row in rows
+        if isinstance(row, dict) and row.get("name") == interface
+    ]
+
+    payload = dict(payload)
+    payload["interfaces"] = filtered
+    payload["requested_interface"] = interface
+    payload["matched"] = len(filtered)
+    result = dict(result)
+    result["interfaces"] = payload
+    return result
+
+
 @server.tool(
+    title="MikroTik Status",
+    description=(
+        "Read current RouterOS health, interfaces, network or SSH-session state. "
+        "For health/interfaces, duration>0 performs a real time-series sample."
+    ),
+    annotations=READ_ONLY,
     structured_output=False,
 )
 def mikrotik_status(
-    device: str,
+    device: DeviceName,
     section: StatusSection = "health",
-    duration: int = 0,
-    interval: int = 1,
+    duration: TimedDuration = 0,
+    interval: SampleInterval = 1,
+    interface: Optional[InterfaceName] = None,
+    chart: bool = False,
 ) -> CallToolResult:
-    """Consulta el estado actual de un MikroTik. USA ESTA TOOL para CPU y salud.
-
-    Args:
-        device:
-            Perfil local del dispositivo. Ejemplo: laboratorio.
-        section:
-            health = CPU, RAM, almacenamiento, uptime, RouterOS y firmware.
-            interfaces = puertos, enlaces, contadores y link-downs.
-            network = direcciones IP, rutas, gateway y connection tracking.
-            session = conexión SSH, reutilización y edad de la sesión.
-        duration:
-            Para section=health: 0 obtiene estado puntual. Un valor entre 5 y
-            120 muestrea CPU durante esa cantidad de segundos.
-        interval:
-            Intervalo de muestreo de CPU en segundos cuando duration > 0.
-
-    Esta es la herramienta preferida para estado puntual Y CPU temporal.
-    Para "¿cómo está el CPU?" usa section="health".
-    Si section=health y duration > 0, Python enruta internamente al sampler
-    temporal. No es necesario escoger otra herramienta.
-    """
-
-    if section == "health" and duration > 0:
-        return _compact_result(
-            run_skill(
+    def execute() -> CallToolResult:
+        if duration > 0 and section == "health":
+            result = run_skill(
                 operation="cpu_sample",
                 device=device,
                 duration=duration,
                 interval=interval,
             )
-        )
+            image = None
+            if chart and result.get("status") == "ok":
+                image = render_cpu_chart(result.get("cpu_sample", {}))
+            return _compact_result(result, image_png=image)
 
-    operation = "session_status" if section == "session" else section
+        if duration > 0 and section == "interfaces":
+            result = run_skill(
+                operation="interface_sample",
+                device=device,
+                interface=interface,
+                duration=duration,
+                interval=interval,
+            )
+            image = None
+            if chart and result.get("status") == "ok":
+                image = render_interface_chart(
+                    result.get("interface_sample", {})
+                )
+            return _compact_result(result, image_png=image)
 
-    return _compact_result(
-        run_skill(
+        if duration > 0:
+            raise ValueError(
+                "duration solo aplica a section=health o section=interfaces."
+            )
+
+        if chart:
+            raise ValueError(
+                "chart requiere una medición temporal con duration > 0."
+            )
+
+        operation = "session_status" if section == "session" else section
+        result = run_skill(
             operation=operation,
             device=device,
         )
+
+        if section == "interfaces" and interface:
+            result = _filter_interface(result, interface)
+
+        return _compact_result(result)
+
+    return audited_call(
+        "mikrotik_status",
+        {
+            "device": device,
+            "section": section,
+            "duration": duration,
+            "interval": interval,
+            "interface": interface,
+            "chart": chart,
+        },
+        execute,
     )
 
 
 @server.tool(
+    title="MikroTik Inventory",
+    description=(
+        "Read the complete normalized device inventory and deterministic findings. "
+        "Use only when the full inventory is actually required."
+    ),
+    annotations=READ_ONLY,
     structured_output=False,
 )
 def mikrotik_inventory(
-    device: str,
+    device: DeviceName,
 ) -> CallToolResult:
-    """Obtiene el inventario completo. Úsala solo si se pide inventario completo."""
-
-    return _structured_result(
-        run_skill(
-            operation="inventory",
-            device=device,
-        )
+    return audited_call(
+        "mikrotik_inventory",
+        {"device": device},
+        lambda: _structured_result(
+            run_skill(
+                operation="inventory",
+                device=device,
+            )
+        ),
     )
 
 
 @server.tool(
+    title="MikroTik Torch Flows",
+    description=(
+        "Inspect live network flows with RouterOS Torch: hosts, protocols, ports "
+        "and observed rates. This is not a CPU or interface-bandwidth sampler."
+    ),
+    annotations=READ_ONLY,
     structured_output=False,
 )
 def mikrotik_torch_flows(
-    device: str,
-    duration: int = 5,
+    device: DeviceName,
+    interface: Optional[InterfaceName] = None,
+    duration: TorchDuration = 5,
 ) -> CallToolResult:
-    """Inspecciona FLUJOS DE RED con RouterOS Torch.
-
-    USA ESTA TOOL exclusivamente para preguntas sobre hosts/IP, protocolos,
-    puertos, conversaciones o quién genera/recibe tráfico de red.
-
-    NO usar para CPU, RAM, almacenamiento, uptime ni recursos del sistema.
-    Si la pregunta menciona CPU durante un período usa mikrotik_cpu_sample,
-    aunque también mencione segundos, análisis o gráfico.
-    """
-
-    return _structured_result(
-        run_skill(
-            operation="traffic",
-            device=device,
-            duration=duration,
-        )
+    return audited_call(
+        "mikrotik_torch_flows",
+        {
+            "device": device,
+            "interface": interface,
+            "duration": duration,
+        },
+        lambda: _structured_result(
+            run_skill(
+                operation="traffic",
+                device=device,
+                interface=interface,
+                duration=duration,
+            )
+        ),
     )
 
 
 @server.tool(
+    title="MikroTik Full Diagnostic",
+    description=(
+        "Run complete inventory plus a bounded Torch capture. Expensive; use only "
+        "when the user explicitly requests both inventory and live flow analysis."
+    ),
+    annotations=READ_ONLY,
     structured_output=False,
 )
 def mikrotik_full(
-    device: str,
-    duration: int = 5,
+    device: DeviceName,
+    interface: Optional[InterfaceName] = None,
+    duration: TorchDuration = 5,
 ) -> CallToolResult:
-    """Ejecuta inventario completo y Torch. Úsala solo cuando se necesiten ambos."""
-
-    return _structured_result(
-        run_skill(
-            operation="full",
-            device=device,
-            duration=duration,
-        )
+    return audited_call(
+        "mikrotik_full",
+        {
+            "device": device,
+            "interface": interface,
+            "duration": duration,
+        },
+        lambda: _structured_result(
+            run_skill(
+                operation="full",
+                device=device,
+                interface=interface,
+                duration=duration,
+            )
+        ),
     )
 
 
