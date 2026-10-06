@@ -26,6 +26,16 @@ def normalize_fingerprint(value: str) -> str:
     return "SHA256:" + value.rstrip("=")
 
 
+class SSHHostKeyMismatch(paramiko.SSHException):
+    def __init__(self, hostname: str, expected: str, actual: str) -> None:
+        self.hostname = hostname
+        self.expected = expected
+        self.actual = actual
+        super().__init__(
+            "La host key SSH no coincide con el pin configurado."
+        )
+
+
 class PinnedHostKeyPolicy(paramiko.MissingHostKeyPolicy):
     """Verify a SHA256 host-key pin during SSH key exchange, before auth."""
 
@@ -42,10 +52,10 @@ class PinnedHostKeyPolicy(paramiko.MissingHostKeyPolicy):
         actual = ssh_key_fingerprint_sha256(key)
 
         if not hmac.compare_digest(self.expected, actual):
-            raise paramiko.BadHostKeyException(
-                hostname,
-                key,
-                key,
+            raise SSHHostKeyMismatch(
+                hostname=hostname,
+                expected=self.expected,
+                actual=actual,
             )
 
 
