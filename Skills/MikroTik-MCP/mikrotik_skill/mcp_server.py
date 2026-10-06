@@ -34,7 +34,7 @@ server = MCPServer(
         "al dispositivo sin intentar primero mikrotik_status cuando la "
         "pregunta sea sobre su estado."
     ),
-    version="0.7.2",
+    version="0.8.0",
 )
 
 
@@ -76,6 +76,8 @@ def _compact_result(result: dict[str, Any]) -> CallToolResult:
 def mikrotik_status(
     device: str,
     section: StatusSection = "health",
+    duration: int = 0,
+    interval: int = 1,
 ) -> CallToolResult:
     """Consulta el estado actual de un MikroTik. USA ESTA TOOL para CPU y salud.
 
@@ -87,13 +89,27 @@ def mikrotik_status(
             interfaces = puertos, enlaces, contadores y link-downs.
             network = direcciones IP, rutas, gateway y connection tracking.
             session = conexión SSH, reutilización y edad de la sesión.
+        duration:
+            Para section=health: 0 obtiene estado puntual. Un valor entre 5 y
+            120 muestrea CPU durante esa cantidad de segundos.
+        interval:
+            Intervalo de muestreo de CPU en segundos cuando duration > 0.
 
-    Esta es la herramienta preferida SOLO para estado puntual.
+    Esta es la herramienta preferida para estado puntual Y CPU temporal.
     Para "¿cómo está el CPU?" usa section="health".
-    NO usar si el usuario pide CPU durante X segundos/minutos, monitorear,
-    muestrear, promedio, máximo, mínimo, tendencia o gráfico; en esos casos
-    usa obligatoriamente mikrotik_cpu_sample.
+    Si section=health y duration > 0, Python enruta internamente al sampler
+    temporal. No es necesario escoger otra herramienta.
     """
+
+    if section == "health" and duration > 0:
+        return _compact_result(
+            run_skill(
+                operation="cpu_sample",
+                device=device,
+                duration=duration,
+                interval=interval,
+            )
+        )
 
     operation = "session_status" if section == "session" else section
 
@@ -101,45 +117,6 @@ def mikrotik_status(
         run_skill(
             operation=operation,
             device=device,
-        )
-    )
-
-
-@server.tool(
-    structured_output=False,
-)
-def mikrotik_cpu_sample(
-    device: str,
-    duration: int = 30,
-    interval: int = 1,
-) -> CallToolResult:
-    """Muestrea CPU en el tiempo y devuelve datos listos para reporte o gráfico.
-
-    Args:
-        device:
-            Perfil local del dispositivo. Ejemplo: laboratorio.
-        duration:
-            Ventana de muestreo en segundos, entre 5 y 120.
-        interval:
-            Separación entre muestras en segundos, mínimo 1.
-
-    USA ESTA TOOL OBLIGATORIAMENTE cuando CPU aparezca junto a una duración
-    (por ejemplo 30 segundos o 2 minutos), o cuando el usuario pida observar,
-    monitorear, muestrear, promedio/mínimo/máximo, tendencia, serie temporal
-    o gráfico. mikrotik_status solo da una lectura puntual y NO satisface
-    solicitudes de CPU durante un período. Una sola llamada realiza todo el muestreo; no hagas múltiples
-    llamadas a mikrotik_status para simular una serie temporal.
-
-    El campo readings contiene elapsed_seconds y cpu_percent y puede
-    representarse directamente como un gráfico de línea CPU (%) vs tiempo.
-    """
-
-    return _compact_result(
-        run_skill(
-            operation="cpu_sample",
-            device=device,
-            duration=duration,
-            interval=interval,
         )
     )
 
