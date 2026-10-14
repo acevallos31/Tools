@@ -380,3 +380,20 @@ Esto descarta que el fallo esté limitado a la TUI o a `--standalone`. El compor
 
 La API directa de Basecamp continúa devolviendo function calling válido tanto en `/v1/chat/completions` como en `/v1/responses`. Por tanto, no modificar el modelo ni el MCP para compensar este problema del cliente.
 
+
+
+### OpenCode: tool calling operativo, pero sobreuso de tools
+
+Con la configuración temporal que sí ejecuta tools, se midió una petición controlada:
+
+`Usa la herramienta shell para ejecutar exactamente dir. Después responde únicamente OK.`
+
+Resultado:
+
+- OpenCode ejecutó `dir` correctamente;
+- el modelo realizó además una llamada de escritura y creó `OK.txt`, aunque no se solicitó;
+- finalmente respondió `OK`;
+- tiempo total: ~27.87 s.
+
+La medición queda contaminada por una tool extra no solicitada. Para medir el costo real de un único ciclo shell -> resultado -> respuesta, la siguiente prueba debe restringir el agente a `shell` únicamente mediante permisos V2.
+
