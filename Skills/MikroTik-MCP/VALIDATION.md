@@ -259,3 +259,19 @@ Esto invalida temporalmente la interpretación del test de 1000 repeticiones com
 
 Siguiente aislamiento recomendado: probar otros modelos expuestos por el mismo endpoint. Si otro modelo responde normalmente, la degradación queda acotada a `qwen3-coder:30b`; si todos fallan, el problema es más amplio en el runtime/servidor.
 
+
+
+### Recuperación observada tras cambio temporal de modelo
+
+Después de que `qwen3-coder:30b` agotara timeouts incluso con un prompt mínimo, se ejecutó una petición directa a `qwen2.5-coder:1.5b`, que respondió correctamente (~3.33 s). Inmediatamente después se volvió a probar `qwen3-coder:30b` con el mismo prompt mínimo.
+
+Resultado:
+
+- `qwen3-coder:30b` respondió correctamente en ~1.87 s;
+- usage observado: 14 prompt tokens, 2 completion tokens, 16 total tokens;
+- respuesta: `OK`.
+
+Interpretación: el problema previo no se considera una degradación permanente demostrada del modelo. El cambio temporal de modelo pudo forzar una descarga/recarga de la instancia, liberar una cola bloqueada o limpiar otro estado transitorio del runtime. La causalidad exacta no puede confirmarse sin acceso al servidor GPU.
+
+Gate 3 puede reanudarse, pero se deben repetir primero una prueba de contexto moderado y una prueba limpia en OpenCode/Hermes antes de atribuir estabilidad al backend.
+
