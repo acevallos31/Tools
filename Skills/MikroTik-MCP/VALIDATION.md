@@ -326,3 +326,20 @@ Por tanto, Basecamp/Qwen/Ollama-compatible entrega correctamente el formato Open
 
 Conclusión: el problema de tool execution queda aislado a la capa de compatibilidad/interpretación de OpenCode para proveedores OpenAI-compatible con Qwen3-Coder, no al modelo ni al MCP MikroTik.
 
+
+
+### Responses API confirmada para Basecamp/Qwen
+
+Se probó directamente `POST /v1/responses` contra el endpoint Basecamp con `qwen3-coder:30b`, definiendo una función `shell(command: string)`.
+
+Resultado:
+
+- latencia: ~2.01 s;
+- respuesta completada correctamente;
+- `output[0].type`: `function_call`;
+- `output[0].name`: `shell`;
+- arguments: `{"command":"dir"}`;
+- usage: 299 input tokens, 22 output tokens, 321 total tokens.
+
+Esto demuestra que el backend soporta OpenAI Responses API con function calling. Dado que OpenCode 2.0.29 muestra tool calls como texto usando `@ai-sdk/openai-compatible` + `/v1/chat/completions`, la siguiente prueba recomendada es configurar temporalmente OpenCode con `@ai-sdk/openai` para usar `/v1/responses`, manteniendo `snapshot:false`.
+
