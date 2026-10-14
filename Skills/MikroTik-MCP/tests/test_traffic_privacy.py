@@ -33,6 +33,7 @@ def test_torch_uses_logical_target_not_management_host() -> None:
 
     payload = capture.to_dict()
     assert payload["target"] == "laboratorio"
+    assert payload["timestamp"].endswith("+00:00")
     assert FakeClient.host not in str(payload)
 
 
