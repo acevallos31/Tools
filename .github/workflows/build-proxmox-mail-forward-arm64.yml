@@ -18,7 +18,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config libssl-dev libsystemd-dev clang ca-certificates git file
+            build-essential pkg-config libssl-dev libsystemd-dev uuid-dev clang ca-certificates git file
+
+      - name: Verify native linker libraries
+        run: |
+          set -euo pipefail
+          test "$(dpkg --print-architecture)" = arm64
+          pkg-config --modversion openssl
+          pkg-config --modversion uuid
+          test -e /usr/lib/aarch64-linux-gnu/libuuid.so
+          test -e /usr/lib/aarch64-linux-gnu/libssl.so
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -109,7 +118,12 @@ jobs:
           test -x "$BIN"
           file "$BIN"
           file "$BIN" | grep -q 'aarch64'
-          ldd "$BIN" | tee dynamic-dependencies.txt || true
+          ldd "$BIN" | tee dynamic-dependencies.txt
+          if grep -q 'not found' dynamic-dependencies.txt; then
+            echo 'Missing runtime shared libraries' >&2
+            exit 1
+          fi
+          readelf -h "$BIN" | grep -E 'Class:|Machine:'
           mkdir -p dist
           cp "$BIN" dist/
           cp upstream-commit.txt proxmox-rs-commit.txt upstream-cargo-config-original.toml dynamic-dependencies.txt upstream/Cargo.lock dist/
