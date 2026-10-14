@@ -451,3 +451,28 @@ Resultado observado:
 
 No se expusieron IP/hostname de administración, username ni secretos. Gate 3.1 queda aprobado.
 
+
+
+### Gate 3.2 - health real por SSH aprobado
+
+Se ejecutó `health --device laboratorio` directamente desde Python/CLI, sin Hermes ni Qwen.
+
+Resultado:
+
+- `status: ok`;
+- conexión administrada por Session Manager;
+- RouterOS: `7.24.4 (stable)`;
+- modelo: `CRS112-8P-4S`;
+- arquitectura: `mipsbe`;
+- CPU instantáneo observado: `100%`;
+- memoria libre observada: `83.5 MiB` de `128.0 MiB`;
+- storage libre observado: ~`3036 KiB` de `16 MiB`;
+- firmware RouterBOARD actual: `7.22`;
+- upgrade-firmware reportado: `7.24.4`;
+- backend elapsed: ~`6.89 s`;
+- extremo a extremo medido desde PowerShell: ~`7.69 s`;
+- sesión conectada correctamente;
+- primera conexión, sin reutilización previa.
+
+La lectura de CPU es point-in-time y no demuestra carga sostenida. Siguiente paso: muestreo temporal real de CPU.
+
