@@ -131,3 +131,7 @@ Prueba realizada en Raspberry Pi con un mensaje **sintético** con asunto `[PRUE
 ### Confirmación de recepción del Paso 83 (14-10-2026)
 
 El usuario confirmó explícitamente que recibió en Gmail el mensaje con asunto `[PRUEBA COLA V2] Raspberry Pi 5`, después de que el worker eliminara el mensaje de SQLite (`pending=0`). Queda verificada la entrega sintética completa **cola local → servicio systemd → helper V2 → PBS SMTP → Gmail**. La cola automática y el adaptador `smartd-to-pbs-queued` todavía no están activados; sigue pendiente validar la retención ante un fallo controlado.
+
+### Paso 84.2 — Fallo de transporte simulado con retención persistente (14-10-2026)
+
+En el laboratorio **aislado** `~/pbs-smart-queue-staging/retry-lab`, no en la cola real, se crearon `fake-check` (protocolo `checked-delivery-v1`), `fake-forwarder` (retorna error 75), y mensaje sintético de 97 bytes. `sudo env PBS_SMART_QUEUE_DIR="$LAB/spool" ... enqueue "$LAB/test.eml"` registró `INFO queued id=1792018607-a58f82f060044535908d6ffe289a09c7 bytes=97`. El `run` con transporte simulado devolvió `ERROR pending id=... attempt=1 retry_in=60s reason=forwarder exit status 75`, y `status` informó `pending=1 bytes=97 previously_failed=1`. **Se verificó que no se elimina el mensaje ante un fallo**. La cola real estaba previamente en `pending=0` y PBS `running/healthy`; no se activó el timer. Falta comprobar el procesamiento posterior del mismo mensaje al recuperar el transporte simulado.
