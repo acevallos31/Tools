@@ -365,3 +365,18 @@ Conclusión:
 
 Recomendación operativa: mantener OpenCode con `snapshot:false` y el proveedor `@ai-sdk/openai` para este backend mientras se usa Qwen3-Coder 30B.
 
+
+
+### OpenCode run normal también reproduce tool call como texto
+
+Con la configuración global mostrando `snapshot:false` y `@ai-sdk/openai`, se probó `opencode run` normal (sin `--standalone`) en el proyecto MikroTik-MCP.
+
+Resultados:
+
+- chat simple: `OK` en ~2.84 s;
+- petición que requiere shell: terminó en ~6.07 s pero imprimió literalmente `<function=shell>...` en lugar de ejecutar la herramienta.
+
+Esto descarta que el fallo esté limitado a la TUI o a `--standalone`. El comportamiento coincide con incidencias conocidas de OpenCode con modelos locales/Ollama donde tool calls válidos del backend terminan expuestos como texto en ciertos caminos del runtime.
+
+La API directa de Basecamp continúa devolviendo function calling válido tanto en `/v1/chat/completions` como en `/v1/responses`. Por tanto, no modificar el modelo ni el MCP para compensar este problema del cliente.
+
