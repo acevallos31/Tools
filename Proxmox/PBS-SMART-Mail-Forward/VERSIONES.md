@@ -9,9 +9,9 @@
 | Versión del proyecto | Estado en Raspberry | Funcionalidad |
 |---|---|---|
 | **V1.0 — respaldo funcional** | Conservada para rollback; ya no es el helper activo | `smartd` → `smartd-runner` → `20pbs-smart` → adaptador → helper ARM64 oficial → PBS Notifications SMTP → Gmail; **sin cola ni reintentos persistentes**. |
-| **V2.0-RC1 — en validación final** | **Helper, cola SQLite, temporizador y adaptador SMART encolado activos** desde pasos 78–88; falta confirmar prueba completa desde `smartd-runner` hasta Gmail | Helper ARM64 modificado para notificar fallos SMTP; cola SQLite persistente; retry/backoff y unidades systemd; pruebas aisladas y build ARM64 aprobados. |
+| **V2.0 — operativa y validada** | Helper ARM64, cola SQLite, temporizador y adaptador SMART encolado activos; **flujo final desde `smartd-runner` hasta Gmail recibido y confirmado en Paso 89** | Helper ARM64 modificado para notificar fallos SMTP; cola SQLite persistente; retry/backoff y unidades systemd; pruebas aisladas y build ARM64 aprobados. |
 
-**Fecha del registro:** 14 de octubre de 2026. V2.0-RC1 activada en producción; pendiente validación sintética completa desde `smartd-runner` hasta Gmail antes de declararla estable.
+**Fecha del registro:** 14 de octubre de 2026. **V2.0 validada funcionalmente y en operación en Raspberry.** El ejecutable permanece intencionalmente en la ruta `versions/V2.0-RC1/`, referida por Docker Compose; no moverlo ni renombrarlo. Designación interna del proyecto, sin release/tag y sin merge del PR #4.
 
 ## V1.0 — Versión operativa validada
 
@@ -32,7 +32,7 @@
 - Respaldo Compose de consolidación: `/opt/pbs/compose.yml.backup-20261014-144827`.
 - **Limitación V1:** el helper oficial puede devolver salida exitosa incluso si un endpoint SMTP falla; no hay persistencia ni reenvío al fallar el envío.
 
-## V2.0-RC1 — Cola persistente desplegada, prueba final pendiente
+## V2.0 — Cola persistente desplegada y validada
 
 ### Cambios funcionales
 - Agrega `pbs-smart-queue`: SQLite en `/var/spool/pbs-smart-mail`, transacciones durables, cola acotada (500 mensajes / 16 MiB, 256 KiB por mensaje), acceso restringido a root.
@@ -53,12 +53,12 @@
 - SHA256 binario V2: `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35`.
 - **Paso 72 validado en Raspberry**: descarga a `~/pbs-smart-queue-staging/`, hashes de ZIP, paquete y binario con resultado `OK`; ejecutable aún sin instalar. Contenido del paquete incluye el parche y manifest `Cargo.lock`.
 
-### Criterios de aceptación pendientes de V2
-1. Comprobar `--pbs-smart-queue-protocol` y `ldd -r` del helper corregido **en ruta temporal** del contenedor PBS, sin reemplazar V1.
-2. Hacer copia del ejecutable V1 e instalar V2 solo en ventana aprobada sin tareas PBS activas; confirmar `running/healthy`, datastore y test SMTP sintético recibido.
-3. Instalar cola y unidades en estado controlado; pruebas de fallo/transitorio sin interrumpir PBS real y verificación de preservación del mensaje pendiente.
-4. Activar adaptador encolado y timer; prueba extremo a extremo `smartd-runner` → cola → Gmail; inspeccionar `pending=0`.
-5. Actualizar documentación tras resultados reales, conservar pasos de rollback.
+### Criterios de aceptación V2 — completados
+1. **OK (Paso 73):** comprobar `--pbs-smart-queue-protocol` y `ldd -r` del helper corregido en ruta temporal de PBS.
+2. **OK (Pasos 74–78):** preservar V1, probar SMTP sintético en Gmail, desplegar V2 sin tareas activas y confirmar `running/healthy` y datastore montado.
+3. **OK (Pasos 79–85):** instalar cola y unidades, validar en laboratorio aislado fallo simulado con retención de pendiente y procesamiento tras recuperación. No se generó una falla SMTP real.
+4. **OK (Pasos 86–89):** activar timer y adaptador encolado; confirmar recorrido `smartd-runner` → cola → PBS → Gmail recibido y `pending=0`.
+5. **OK (cierre del Paso 89):** documentación actualizada y V1 preservada como respaldo. El PR #4 permanece draft/sin fusionar.
 
 ### Compatibilidad y limitaciones
 - V1 y V2 reutilizan el mismo SMTP y matcher existentes en PBS; la cola V2 se aloja en el **host**, no en el datastore.
@@ -69,9 +69,9 @@
 
 ## Recuperación y rollback
 
-- **Mientras V2 no esté desplegada**: continuar con V1, no cambiar rutas activas ni servicios.
-- **Tras instalar V2**: conservar el ejecutable V1 y el `smartd-to-pbs` anterior. En una recuperación, suspender `pbs-smart-queue.timer`, impedir nuevos envíos desde worker, restaurar el adaptador y helper V1 siguiendo ventana aprobada (recrear contenedor solo si imprescindible).
-- **Nunca borrar la base SQLite con mensajes pendientes** al volver a V1: los mensajes que quedaron en V2 no se entregarán por la vía directa. Drenarlos con helper V2 corregido antes de retirar el spool.
+- **Estado actual:** V2.0 está desplegada; V1 ya no es el camino activo, pero conserva wrapper, adaptador y binario para rollback.
+- **Rollback del adaptador, sin recrear PBS:** restaurar exclusivamente `/etc/smartmontools/run.d/20pbs-smart` desde `/opt/pbs/smart-alerts/20pbs-smart.direct.pre-v2` de forma atómica, verificando su contenido. Mantener V2 helper y timer para procesar alertas **ya encoladas**; si se desea detener el timer, hacerlo únicamente cuando se haya vaciado o preservado la cola y se acepte la suspensión de sus entregas.
+- **Rollback del helper a binario V1** (solo si necesario): tras restaurar adaptador directo, verificar cola vacía o plan para preservarla, detener timer si procede, restaurar el `source:` original desde el respaldo `/opt/pbs/compose.yml.pre-v2-20261014-161215` **sin sobrescribir otros cambios**, y recrear el contenedor solo en una ventana sin tareas PBS activas. **Nunca borrar SQLite con pendientes**: V1 no confirma correctamente fallos SMTP y no debe ejecutarse como worker V2.
 - Conservación de logs locales `smartd`, PBS y datastore en ambas versiones.
 
 Ver procedimientos técnicos en [OPERACION-Y-RECUPERACION.md](./OPERACION-Y-RECUPERACION.md) (V1) y [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) (V2).
@@ -171,3 +171,9 @@ PBS permaneció `Estado=running Salud=healthy`. Se conserva `/opt/pbs/smart-aler
 ### Paso 89 — Prueba sintética de extremo a extremo desde smartd-runner (14-10-2026)
 
 La Raspberry verificó `run-parts --test --lsbsysinit /etc/smartmontools/run.d` con resultado **solo** `/etc/smartmontools/run.d/20pbs-smart`; el wrapper contiene `exec /opt/pbs/smart-alerts/smartd-to-pbs-queued "$1"` y el timer está activo. Se inyectó una alerta SMART **sintética** con asunto `[PRUEBA FINAL SMARTD V2] Raspberry Pi 5` a través de `/usr/share/smartmontools/smartd-runner`, sin provocar fallos físicos. Resultado: `INFO queued id=1792019809-6e658c24749345958f9640a06beec33e bytes=348`. El journal registró `INFO forwarded id=1792019809-6e658c24749345958f9640a06beec33e after_attempt=1` a las 17:16:51. La cola real quedó `pending=0 bytes=0 previously_failed=0`, y contenedor PBS `Estado=running Salud=healthy`. **Se confirmó aceptación del envío por el helper, pero falta confirmación explícita del usuario de recepción del mensaje específico del Paso 89 en Gmail.** No declarar V2.0 estable hasta esa confirmación.
+
+### Paso 89 — Confirmación final Gmail y cierre de V2.0 (14-10-2026)
+
+Tras registrar `INFO queued id=1792019809-6e658c24749345958f9640a06beec33e bytes=348` generado por `smartd-runner`, el mismo ID fue procesado por `pbs-smart-queue.service` (`INFO forwarded ... after_attempt=1`), la cola real quedó `pending=0 bytes=0 previously_failed=0` y PBS permaneció `running/healthy`. **El usuario confirmó explícitamente la recepción en Gmail** del correo con asunto `[PRUEBA FINAL SMARTD V2] Raspberry Pi 5`.
+
+**Resultado:** V2.0 **validada funcionalmente y operativa**, desde `smartd-runner` hasta Gmail. Pruebas de falla/recuperación simuladas en cola SQLite aislada aprobadas; **no se ha provocado una falla real de disco ni una interrupción SMTP real**. Se conserva el helper físicamente bajo `versions/V2.0-RC1/` para no alterar el bind mount activo. V1 está respaldada y puede recuperarse mediante procedimiento controlado; el PR #4 continúa en borrador, sin merge a `main` ni publicación de release/tag oficial.
