@@ -132,7 +132,9 @@ hermes gateway restart
 hermes mcp test mikrotik
 ```
 
-Con la allowlist recomendada, Hermes debe registrar cuatro herramientas del servidor. Sin filtro registrará cinco.
+Con la allowlist recomendada, Hermes debe registrar cuatro herramientas para el agente. El servidor MCP sigue anunciando cinco herramientas nativas.
+
+Importante: `hermes mcp test mikrotik` hace un probe directo del servidor y muestra el catálogo bruto devuelto por `tools/list`; por eso puede mostrar `Tools discovered: 5` e incluir `mikrotik_full` aunque `tools.include` esté correctamente configurado. La allowlist se aplica durante el registro runtime de herramientas para el agente/modelo, no durante ese probe de diagnóstico. Para validar la política se debe comprobar la superficie efectiva en una sesión Hermes y/o la selección real de herramientas, no exigir que `hermes mcp test` baje a cuatro.
 
 Después de cambiar solamente filtros MCP, Hermes también documenta `/reload-mcp` como mecanismo de recarga en una sesión compatible.
 
