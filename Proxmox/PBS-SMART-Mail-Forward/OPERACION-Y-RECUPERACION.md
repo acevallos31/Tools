@@ -1,4 +1,6 @@
-# Operación y recuperación — SMART → PBS → Gmail (Raspberry Pi 5)
+# V1.0 — Operación y recuperación de SMART → PBS → Gmail (Raspberry Pi 5)
+
+Esta guía corresponde a la **V1.0 desplegada** (envío inmediato, sin cola local). La **V2.0-RC1** está preparada, pero no instalada. Ver [VERSIONES.md](./VERSIONES.md) para hashes y estado, y [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) para el procedimiento previsto de migración.
 
 **Alcance:** Debian 12 en Raspberry Pi 5; `smartd` supervisa Micron 2400A NVMe y ADATA SU650 SATA; contenedor `pbs` con configuración persistente en `/opt/pbs/compose.yml`. Validado con mensajes sintéticos y recepción confirmada en Gmail el **14 de octubre de 2026**.
 
