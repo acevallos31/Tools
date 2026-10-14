@@ -1,0 +1,77 @@
+# Historial de versiones — PBS SMART Mail Forward (ARM64)
+
+**Proyecto:** integración del monitoreo SMART del host Raspberry Pi 5 (Debian 12) con notificaciones SMTP de Proxmox Backup Server 4.2.8-1 en Docker hacia Gmail.
+
+> Números de versión usados para **documentar las fases del proyecto**; no son versiones oficiales de Proxmox ni implican que se hayan creado GitHub Releases o tags. El código permanece en el PR [#4](https://github.com/acevallos31/Tools/pull/4), rama `feat/pbs-smart-mail-forward-arm64`, **sin merge a main**.
+
+## Resumen de versiones y despliegue
+
+| Versión del proyecto | Estado en Raspberry | Funcionalidad |
+|---|---|---|
+| **V1.0 — versión operativa** | **DESPLEGADA** y funcionando | `smartd` → `smartd-runner` → `20pbs-smart` → adaptador → helper ARM64 oficial → PBS Notifications SMTP → Gmail; **sin cola ni reintentos persistentes**. |
+| **V2.0-RC1 — candidata con cola** | **NO DESPLEGADA**; helper descargado a `~/pbs-smart-queue-staging/helper/` | Helper ARM64 modificado para notificar fallos SMTP; cola SQLite persistente; retry/backoff y unidades systemd; pruebas aisladas y build ARM64 aprobados. |
+
+**Fecha del registro:** 14 de octubre de 2026. **No confundir "descargada" con "instalada/activada".**
+
+## V1.0 — Versión operativa validada
+
+### Alcance
+- Raspberry Pi 5 ARM64 / Debian 12, PBS 4.2.8-1 contenedor Docker `pbs`.
+- `smartd` vigila **2 dispositivos**: Micron 2400A NVMe y ADATA SU650 SATA por USB/SAT.
+- Configuración del host: `/etc/smartd.conf` usa `smartd-runner` y `/etc/smartmontools/run.d/20pbs-smart`. El `10mail` original permanece en disco sin bit de ejecución.
+- Scripts en host `/opt/pbs/smart-alerts/smartd-to-pbs` y `/opt/pbs/smart-alerts/pbs-smart-forward`.
+- Helper instalado en el host `/opt/pbs/smart-alerts/bin/proxmox-mail-forward` y montado **solo lectura** en el contenedor `/usr/bin/proxmox-mail-forward` mediante `/opt/pbs/compose.yml`.
+- PBS Notifications reutiliza el SMTP Gmail existente `smtp-pbs-alerts` y el matcher `pbs-important-alerts`, sin duplicar credenciales.
+- `/mnt/pbs` en `/dev/sda1` ext4; contenedor `running/healthy`, política `unless-stopped`.
+
+### Trazabilidad V1
+- Workflow GitHub Actions correcto: [run 38623764393](https://github.com/acevallos31/Tools/actions/runs/38623764393).
+- Binario ELF AArch64 V1: SHA256 `a2db207ddf30226eb0be4ad537fc0f563f65a925e54fea7549bc7d2fc468267c`.
+- Tarball V1: SHA256 `3644a3bd6320087dcf2c3d8e93e753ac5d24b1f8a873567951c8bbed799a0601`.
+- Pruebas sintéticas confirmadas por correo Gmail: desde el contenedor, desde el host, desde adaptador SMART y desde `smartd-runner`; auditoría final de volúmenes y servicio aprobada.
+- Respaldo Compose de consolidación: `/opt/pbs/compose.yml.backup-20261014-144827`.
+- **Limitación V1:** el helper oficial puede devolver salida exitosa incluso si un endpoint SMTP falla; no hay persistencia ni reenvío al fallar el envío.
+
+## V2.0-RC1 — Cola persistente, build validado, pendiente de instalar
+
+### Cambios funcionales
+- Agrega `pbs-smart-queue`: SQLite en `/var/spool/pbs-smart-mail`, transacciones durables, cola acotada (500 mensajes / 16 MiB, 256 KiB por mensaje), acceso restringido a root.
+- Alerta se encola primero y un worker manda correos cuando el destino está disponible; retrasos exponenciales de 60 s a 3600 s; lote máximo de 5 mensajes.
+- `pbs-smart-queue.service` y `pbs-smart-queue.timer`: reintentos periódicos y al iniciar el sistema, cuando estén activados.
+- `smartd-to-pbs-queued` sustituirá en el futuro la entrega directa por encolado (el notificador `20pbs-smart` sigue igual).
+- Parche fuente reproducible `patch-checked-delivery.py` para que el helper propague errores de envío y de destino.
+- Guardia de compatibilidad: el worker **no confirma ni borra** pendientes si no detecta `checked-delivery-v1` en el helper desplegado.
+
+### Trazabilidad V2
+- Código fuente base anclado:
+  - `proxmox/proxmox-mail-forward` commit `9890c29a3d3da04262fe5564b2321be59928de5e`.
+  - `proxmox/proxmox-rs` commit `89c1d597a9d15743049eadcb1add380573265904`.
+- Workflow GitHub Actions: [run 38641594423](https://github.com/acevallos31/Tools/actions/runs/38641594423), **compilación ARM64 y pruebas aisladas correctas**.
+- Artifact ID: `11931200973` (caduca según política GitHub).
+- SHA256 ZIP del artifact V2: `43725ddc5dc54f992784aff7913d842899717e5f1aac595cdbcdcd6cd46b90c3`.
+- SHA256 tar.gz V2: `c5c8de901f20e9f93ddb99407be598d26c0d2c66228b25034966a07ff0566b41`.
+- SHA256 binario V2: `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35`.
+- **Paso 72 validado en Raspberry**: descarga a `~/pbs-smart-queue-staging/`, hashes de ZIP, paquete y binario con resultado `OK`; ejecutable aún sin instalar. Contenido del paquete incluye el parche y manifest `Cargo.lock`.
+
+### Criterios de aceptación pendientes de V2
+1. Comprobar `--pbs-smart-queue-protocol` y `ldd -r` del helper corregido **en ruta temporal** del contenedor PBS, sin reemplazar V1.
+2. Hacer copia del ejecutable V1 e instalar V2 solo en ventana aprobada sin tareas PBS activas; confirmar `running/healthy`, datastore y test SMTP sintético recibido.
+3. Instalar cola y unidades en estado controlado; pruebas de fallo/transitorio sin interrumpir PBS real y verificación de preservación del mensaje pendiente.
+4. Activar adaptador encolado y timer; prueba extremo a extremo `smartd-runner` → cola → Gmail; inspeccionar `pending=0`.
+5. Actualizar documentación tras resultados reales, conservar pasos de rollback.
+
+### Compatibilidad y limitaciones
+- V1 y V2 reutilizan el mismo SMTP y matcher existentes en PBS; la cola V2 se aloja en el **host**, no en el datastore.
+- Un acuse positivo confirma que un endpoint aceptó el mensaje, **no** garantiza que Gmail haya depositado finalmente el correo en la bandeja.
+- Semántica de reintentos **al menos una vez**: si el envío se acepta y el proceso cae antes de confirmar SQLite, puede producirse un mensaje duplicado.
+- Si la cola llena su capacidad, devuelve error y no elimina alertas existentes; es necesario monitorear espacio y pendientes.
+- No publicar credenciales, datos de `notifications-priv.cfg` ni correos reales almacenados en el spool.
+
+## Recuperación y rollback
+
+- **Mientras V2 no esté desplegada**: continuar con V1, no cambiar rutas activas ni servicios.
+- **Tras instalar V2**: conservar el ejecutable V1 y el `smartd-to-pbs` anterior. En una recuperación, suspender `pbs-smart-queue.timer`, impedir nuevos envíos desde worker, restaurar el adaptador y helper V1 siguiendo ventana aprobada (recrear contenedor solo si imprescindible).
+- **Nunca borrar la base SQLite con mensajes pendientes** al volver a V1: los mensajes que quedaron en V2 no se entregarán por la vía directa. Drenarlos con helper V2 corregido antes de retirar el spool.
+- Conservación de logs locales `smartd`, PBS y datastore en ambas versiones.
+
+Ver procedimientos técnicos en [OPERACION-Y-RECUPERACION.md](./OPERACION-Y-RECUPERACION.md) (V1) y [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) (V2).
