@@ -8,10 +8,10 @@
 
 | Versión del proyecto | Estado en Raspberry | Funcionalidad |
 |---|---|---|
-| **V1.0 — versión operativa** | **DESPLEGADA** y funcionando | `smartd` → `smartd-runner` → `20pbs-smart` → adaptador → helper ARM64 oficial → PBS Notifications SMTP → Gmail; **sin cola ni reintentos persistentes**. |
-| **V2.0-RC1 — candidata con cola** | **NO DESPLEGADA**; helper descargado a `~/pbs-smart-queue-staging/helper/` | Helper ARM64 modificado para notificar fallos SMTP; cola SQLite persistente; retry/backoff y unidades systemd; pruebas aisladas y build ARM64 aprobados. |
+| **V1.0 — respaldo funcional** | Conservada para rollback; ya no es el helper activo | `smartd` → `smartd-runner` → `20pbs-smart` → adaptador → helper ARM64 oficial → PBS Notifications SMTP → Gmail; **sin cola ni reintentos persistentes**. |
+| **V2.0-RC1 — despliegue parcial** | **Helper activo** en PBS desde paso 78; **cola y timer aún NO activados** | Helper ARM64 modificado para notificar fallos SMTP; cola SQLite persistente; retry/backoff y unidades systemd; pruebas aisladas y build ARM64 aprobados. |
 
-**Fecha del registro:** 14 de octubre de 2026. **No confundir "descargada" con "instalada/activada".**
+**Fecha del registro:** 14 de octubre de 2026. **No confundir el helper V2 activo con la cola de reintentos V2, todavía pendiente de activar.**
 
 ## V1.0 — Versión operativa validada
 
