@@ -127,3 +127,7 @@ Salida confirmada del host Raspberry: `pbs-smart-queue.service` y `pbs-smart-que
 ### Paso 83 — Primera entrega manual desde la cola SQLite (14-10-2026)
 
 Prueba realizada en Raspberry Pi con un mensaje **sintético** con asunto `[PRUEBA COLA V2] Raspberry Pi 5`, 323 bytes. `pbs-smart-queue enqueue` devolvió `INFO queued` y `pending=1 bytes=323 previously_failed=0`. Al ejecutar manualmente `sudo systemctl start pbs-smart-queue.service`, el journal confirmó `INFO forwarded id=1792017858-ca46fa923b9f4ceb9bf9e9d80c4ac8ea after_attempt=1`, servicio finalizado sin error. La cola quedó en `pending=0 bytes=0 previously_failed=0`. **Aún no se ha recibido confirmación explícita de llegada a Gmail para este mensaje del Paso 83**; el acuse del helper confirma aceptación del envío, no entrega final a la bandeja. El timer sigue deshabilitado y no se ha cambiado el adaptador SMART de producción a modo encolado.
+
+### Confirmación de recepción del Paso 83 (14-10-2026)
+
+El usuario confirmó explícitamente que recibió en Gmail el mensaje con asunto `[PRUEBA COLA V2] Raspberry Pi 5`, después de que el worker eliminara el mensaje de SQLite (`pending=0`). Queda verificada la entrega sintética completa **cola local → servicio systemd → helper V2 → PBS SMTP → Gmail**. La cola automática y el adaptador `smartd-to-pbs-queued` todavía no están activados; sigue pendiente validar la retención ante un fallo controlado.
