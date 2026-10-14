@@ -413,3 +413,23 @@ Dado que una herramienta distinta de shell siguió disponible y el límite esper
 
 Acción: abortar con Ctrl+C, limpiar variables temporales de OpenCode y no usar este resultado para estimar latencia.
 
+
+
+### Gate 3 - preflight real en Windows/Hermes
+
+Preflight ejecutado en la estación Windows antes de consultar hardware real:
+
+- rama local: `feat/mikrotik-granular-tools`;
+- working tree limpio;
+- HEAD observado: `a2a8c64`;
+- `hermes mcp test mikrotik`: conexión correcta;
+- servidor MCP: 5 tools descubiertas (incluye `mikrotik_full` internamente);
+- allowlist efectiva de Hermes: exactamente 4 tools:
+  - `mikrotik_devices`
+  - `mikrotik_status`
+  - `mikrotik_inventory`
+  - `mikrotik_torch_flows`
+- `mikrotik_full` no está incluida en la allowlist de Hermes.
+
+El preflight de Gate 3 se considera aprobado. Siguiente paso: validar `mikrotik_devices` contra la configuración real sin exponer IP, usuario ni credenciales.
+
