@@ -1,0 +1,59 @@
+name: Build Proxmox Mail Forward ARM64
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 50
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev libsystemd-dev clang ca-certificates git
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Checkout upstream Proxmox source
+        env:
+          UPSTREAM_REF: master
+        run: |
+          git clone --depth 1 --branch "$UPSTREAM_REF" \
+            https://github.com/proxmox/proxmox-mail-forward.git upstream
+          git -C upstream rev-parse HEAD | tee upstream-commit.txt
+          cat upstream/Cargo.toml
+
+      - name: Compile ARM64 release
+        working-directory: upstream
+        run: cargo build --release --locked
+
+      - name: Validate and package
+        run: |
+          set -euo pipefail
+          BIN=upstream/target/release/proxmox-mail-forward
+          test -x "$BIN"
+          file "$BIN"
+          file "$BIN" | grep -q 'aarch64'
+          ldd "$BIN" | tee dynamic-dependencies.txt || true
+          mkdir -p dist
+          cp "$BIN" dist/
+          cp upstream-commit.txt dynamic-dependencies.txt dist/
+          (cd dist && sha256sum proxmox-mail-forward > SHA256SUMS)
+          tar -C dist -czf proxmox-mail-forward-linux-arm64.tar.gz .
+
+      - name: Upload artifact for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: proxmox-mail-forward-linux-arm64
+          path: proxmox-mail-forward-linux-arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 14
