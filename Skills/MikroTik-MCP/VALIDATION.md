@@ -579,3 +579,39 @@ Resultado:
 
 La medición corresponde a tasas actuales observadas en la ventana y no a contadores acumulados.
 
+
+
+### Gate 3.6 - tráfico real de interfaz 30 s aprobado
+
+Se ejecutó `interface_sample --device laboratorio --interface ether1 --duration 30`.
+
+Resultado:
+
+- `status: ok`;
+- fuente: `/interface monitor-traffic ether1 once`;
+- duración solicitada: 30 s;
+- duración real: ~30.001 s;
+- muestras: 30;
+- RX:
+  - mínimo: 0 bps;
+  - máximo: 657000 bps;
+  - promedio: 299683.33 bps;
+  - mediana: 286600 bps;
+  - primera: 273100 bps;
+  - última: 288600 bps;
+- TX:
+  - mínimo: 0 bps;
+  - máximo: 571800 bps;
+  - promedio: 88816.67 bps;
+  - mediana: 58300 bps;
+  - primera: 150500 bps;
+  - última: 62000 bps;
+- RX packets/s promedio: 53.17;
+- TX packets/s promedio: 39.33;
+- queue drops observados: 0;
+- backend elapsed: ~34.16 s;
+- extremo a extremo desde PowerShell: ~34.91 s;
+- sesión conectada correctamente.
+
+Se observó una muestra puntual de RX/TX en cero alrededor del segundo 23, seguida por tráfico normal; se conserva como evidencia observada y no se interpreta por sí sola como caída de enlace.
+
