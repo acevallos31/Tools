@@ -666,3 +666,33 @@ Gate 3.7 queda aprobado.
 
 Durante esta repetición se detectó un detalle menor de consistencia: el timestamp de Torch era naive/local, mientras CPU e interfaces usan UTC timezone-aware. Se corrigió `capture_torch` para emitir UTC con `+00:00` y se añadió una prueba automática que lo exige.
 
+
+
+### Gate 3.8 - gráfico CPU + auditoría JSONL aprobados
+
+Se ejecutó `mikrotik_status(device="laboratorio", section="health", duration=5, interval=1, chart=True)` directamente desde Python.
+
+Resultado observado:
+
+- `is_error: false`;
+- contenido MCP: texto + imagen;
+- duración real: 5.0 s;
+- muestras: 5;
+- CPU mínimo: 26%;
+- CPU máximo: 91%;
+- CPU promedio: 53.8%;
+- CPU mediana: 33%;
+- primera muestra: 91%;
+- última muestra: 26%;
+- se generó imagen PNG;
+- firma PNG válida;
+- el archivo de auditoría existe en el runtime local;
+- el último evento corresponde a `mikrotik_status`;
+- `result_status: ok`;
+- `operation: cpu_sample`;
+- telemetría de ejecución presente;
+- no se detectó la dirección de administración en el evento de auditoría;
+- no se detectó el username SSH en el evento de auditoría.
+
+La generación binaria del gráfico y la auditoría quedan aprobadas. La verificación visual del gráfico depende del cliente local que abre el PNG.
+
