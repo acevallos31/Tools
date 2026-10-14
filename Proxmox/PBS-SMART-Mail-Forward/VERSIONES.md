@@ -167,3 +167,7 @@ exec /opt/pbs/smart-alerts/smartd-to-pbs-queued "$1"
 ```
 
 PBS permaneció `Estado=running Salud=healthy`. Se conserva `/opt/pbs/smart-alerts/20pbs-smart.direct.pre-v2` (root:root 0750) para rollback. **Falta comprobar el flujo entero `smartd-runner` → cola → worker → PBS → Gmail con prueba sintética antes de declarar V2.0 estable.** No se reiniciaron PBS, Docker ni smartd.
+
+### Paso 89 — Prueba sintética de extremo a extremo desde smartd-runner (14-10-2026)
+
+La Raspberry verificó `run-parts --test --lsbsysinit /etc/smartmontools/run.d` con resultado **solo** `/etc/smartmontools/run.d/20pbs-smart`; el wrapper contiene `exec /opt/pbs/smart-alerts/smartd-to-pbs-queued "$1"` y el timer está activo. Se inyectó una alerta SMART **sintética** con asunto `[PRUEBA FINAL SMARTD V2] Raspberry Pi 5` a través de `/usr/share/smartmontools/smartd-runner`, sin provocar fallos físicos. Resultado: `INFO queued id=1792019809-6e658c24749345958f9640a06beec33e bytes=348`. El journal registró `INFO forwarded id=1792019809-6e658c24749345958f9640a06beec33e after_attempt=1` a las 17:16:51. La cola real quedó `pending=0 bytes=0 previously_failed=0`, y contenedor PBS `Estado=running Salud=healthy`. **Se confirmó aceptación del envío por el helper, pero falta confirmación explícita del usuario de recepción del mensaje específico del Paso 89 en Gmail.** No declarar V2.0 estable hasta esa confirmación.
