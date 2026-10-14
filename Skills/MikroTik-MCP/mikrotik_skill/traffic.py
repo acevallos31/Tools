@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -74,7 +74,7 @@ def capture_torch(
         target=logical_target,
         interface=interface,
         duration_seconds=duration,
-        timestamp=datetime.now().isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         command=command,
         stdout=result.stdout,
         stderr=result.stderr,
