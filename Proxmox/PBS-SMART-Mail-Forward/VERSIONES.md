@@ -147,3 +147,7 @@ Captura del usuario: helper activo responde `checked-delivery-v1`; cola de produ
 ### Paso 86.1 — Reprogramación periódica systemd confirmada (14-10-2026)
 
 Captura Raspberry: `systemctl list-timers --all pbs-smart-queue.timer` mostró `LAST Wed 2026-10-14 17:04:44 CST` y `NEXT Wed 2026-10-14 17:05:45 CST` (aproximadamente 61 segundos); el aparente `NEXT -` inmediatamente tras activarlo en el Paso 86 era transitorio. `systemctl show pbs-smart-queue.service` mostró `Result=success`, `ActiveState=inactive`, `SubState=dead`, esperado para servicio `Type=oneshot` entre ejecuciones. El journal mostró ejecución inicial 17:03:37 y ejecución 17:04:44–17:04:45 sin errores. Cola real sigue `pending=0 bytes=0 previously_failed=0`. Timer periódico queda **validado**. Aún falta conmutar adaptador SMART al modo encolado y prueba final completa smartd-runner → SQLite → PBS → Gmail.
+
+### Paso 87 — Estado previo a conmutación SMART (14-10-2026)
+
+La captura compartida al ejecutar el Paso 87 permite verificar la cola real `pending=0 bytes=0 previously_failed=0`, el contenedor PBS `Estado=running Salud=healthy` y que `/etc/smartmontools/run.d/20pbs-smart` **todavía contiene** `exec /opt/pbs/smart-alerts/smartd-to-pbs "$1"` (adaptador V1 de envío directo). La parte visible **no muestra** salida de verificación de permisos/copia de respaldo; verificar ambos archivos en el preflight antes de efectuar la sustitución atómica del wrapper. Timer V2 ya había sido validado como activo y periódico en el Paso 86.1. No declarar conmutación completada sin evidencia.
