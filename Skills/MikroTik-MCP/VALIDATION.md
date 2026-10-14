@@ -433,3 +433,21 @@ Preflight ejecutado en la estación Windows antes de consultar hardware real:
 
 El preflight de Gate 3 se considera aprobado. Siguiente paso: validar `mikrotik_devices` contra la configuración real sin exponer IP, usuario ni credenciales.
 
+
+
+### Gate 3.1 - mikrotik_devices directo aprobado
+
+Se ejecutó `mikrotik_devices()` directamente desde Python, sin Hermes ni Qwen.
+
+Resultado observado:
+
+- `status: ok`;
+- `operation: devices`;
+- `device_count: 1`;
+- perfil lógico: `laboratorio`;
+- `default_interface: ether1`;
+- `host_key_pinned: false`;
+- `session_connected: false`.
+
+No se expusieron IP/hostname de administración, username ni secretos. Gate 3.1 queda aprobado.
+
