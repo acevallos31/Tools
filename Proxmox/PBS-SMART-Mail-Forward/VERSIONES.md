@@ -107,3 +107,7 @@ Se confirmó en la salida real de Raspberry que `docker compose -p pbs -f compos
 - Datastore `/mnt/pbs` sigue en `/dev/sda1`, ext4 `rw,noatime`.
 
 **Estado exacto:** V2 helper **desplegado**, pero el adaptador SMART del host sigue enviando inmediatamente (la cola SQLite y su timer **todavía no están instalados ni activos**). No declarar desplegada la funcionalidad de reintentos hasta verificar pruebas de staging, instalación y entrega.
+
+### Paso 79 — Pruebas aisladas de cola SQLite realizadas en Raspberry (14-10-2026)
+
+El usuario descargó `pbs-smart-queue` y `tests/test_queue.py` de la rama versionada (commit `15dd6b17cb2f1b86f3b311c1411ab4a6fe32f1c4`) a `~/pbs-smart-queue-staging/queue-code/`. Validó sintaxis Python y ejecutó `python3 -m unittest discover -s queue-code/tests -v`: **5 pruebas superadas en 0.087 s** (retención ante error y recuperación posterior, límite de mensaje, límite de capacidad sin eliminar pendientes, eliminación tras acuse y rechazo del helper no verificado). Los registros `pending ... retry_in=60s` son salidas deliberadas de simulaciones mediante transporte ficticio, no errores reales de producción. PBS continuó `running/healthy`. **Cola, spool de producción y timer aún NO instalados ni activados**. El helper V2 corregido ya está activo.
