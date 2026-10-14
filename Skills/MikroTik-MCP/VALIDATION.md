@@ -243,3 +243,19 @@ Primer escalón:
 
 El umbral de degradación actual está por debajo de este primer nivel de prueba. Se requiere una segunda pasada con tamaños menores para localizar el punto de quiebre. Este resultado refuerza que la regresión está en el backend/model runtime y no en el MCP MikroTik.
 
+
+
+### Baseline mínimo también agotó timeout
+
+Después de dejar de usar Hermes/OpenCode y antes de continuar la prueba escalonada, se ejecutó una llamada directa mínima al endpoint con `qwen3-coder:30b`: un único mensaje de usuario `"Responde únicamente OK"`, `stream=false` y `max_tokens=5`.
+
+Resultado observado:
+
+- timeout cliente: 30 s;
+- tiempo medido: ~30.11 s;
+- no hubo respuesta ni usage del proveedor.
+
+Esto invalida temporalmente la interpretación del test de 1000 repeticiones como umbral de contexto: el backend/modelo está degradado incluso con un prompt mínimo. Se suspende la prueba de escalado hasta confirmar que el baseline pequeño vuelve a responder.
+
+Siguiente aislamiento recomendado: probar otros modelos expuestos por el mismo endpoint. Si otro modelo responde normalmente, la degradación queda acotada a `qwen3-coder:30b`; si todos fallan, el problema es más amplio en el runtime/servidor.
+
