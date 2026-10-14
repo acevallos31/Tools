@@ -503,3 +503,46 @@ La ventana cerró exactamente al tiempo solicitado y no sobrepasó la duración.
 
 `session_reused: false` es esperado en esta prueba porque cada invocación de `python -m mikrotik_skill.cli` crea un proceso nuevo. La reutilización de sesión debe validarse con dos operaciones dentro del mismo proceso Python.
 
+
+
+### Gate 3.4 - CPU 30 s + reutilización SSH aprobados
+
+Se ejecutaron dos operaciones dentro del mismo proceso Python:
+
+1. `health --device laboratorio`
+2. `cpu_sample --device laboratorio --duration 30 --interval 1`
+
+Resultados:
+
+- primera operación:
+  - `status: ok`;
+  - CPU instantáneo observado: 96%;
+  - `session_reused: false`;
+  - `session_reuse_count: 0`;
+  - `session_connected: true`;
+  - elapsed backend: ~4.88 s.
+
+- segunda operación:
+  - `status: ok`;
+  - duración solicitada: 30 s;
+  - duración real: 30.0 s;
+  - muestras: 30;
+  - mínimo: 22%;
+  - máximo: 96%;
+  - promedio: 28.77%;
+  - mediana: 26%;
+  - primera muestra: 96%;
+  - última muestra: 25%;
+  - `session_reused: true`;
+  - `session_reuse_count: 1`;
+  - `session_connected: true`;
+  - elapsed backend: ~30.00 s.
+
+Tiempo extremo a extremo del bloque completo desde PowerShell: ~35.66 s.
+
+Conclusiones de aceptación:
+
+- la ventana temporal respeta exactamente los 30 s solicitados;
+- la sesión SSH persistente se reutiliza dentro del mismo proceso;
+- el pico inicial de CPU no representa carga sostenida durante la ventana; no se atribuye causalidad sin evidencia adicional.
+
