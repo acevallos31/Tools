@@ -5,7 +5,7 @@
 - Hermes Agent v0.21.3.
 - MCP Python SDK 2.3.0.
 - Servidor MCP local por stdio.
-- Python del entorno virtual del proyecto.
+- Python 3.11+ con el paquete `mikrotik-mcp-skill` instalado (editable durante desarrollo).
 - Qwen3 Coder 30B con reasoning/thinking desactivado para el endpoint local usado en laboratorio.
 
 ## Diseño
