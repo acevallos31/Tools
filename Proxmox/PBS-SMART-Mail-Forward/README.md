@@ -40,3 +40,7 @@ No introducir contraseñas SMTP en repositorio ni registrar `notifications-priv.
 ## Primera compilación en GitHub Actions
 
 Run [38621684016](https://github.com/acevallos31/Tools/actions/runs/38621684016), job 116050525231: **falló en `cargo generate-lockfile`**, antes de compilar. El runner redirigía `crates-io` a `/usr/share/cargo/registry`, que no existía (`failed to query replaced source registry`). El workflow de la rama de pruebas fue modificado para preparar `$HOME/.cargo/config.toml` con el registro público crates.io; **requiere una nueva ejecución manual**, no `Re-run failed jobs` sobre el commit antiguo. Aún no se ha verificado que esta corrección resuelva toda la compilación.
+
+## Tercer intento: dependencia interna no publicada
+
+Ejecución [38622558033](https://github.com/acevallos31/Tools/actions/runs/38622558033): la eliminación del reemplazo Debian de Cargo permitió acceder a crates.io, pero falló porque `proxmox-http` no está publicado allí. Según la documentación de [proxmox-rs](https://github.com/proxmox/proxmox-rs), la forma de compilar fuera del repositorio oficial es referenciar **todos** sus crates mediante `[patch.crates-io]`. El workflow ahora obtiene dos revisiones fijadas por SHA: mail-forward `9890c29a3d3da04262fe5564b2321be59928de5e` y proxmox-rs `89c1d597a9d15743049eadcb1add380573265904`, genera los parches locales, resuelve dependencias públicas desde crates.io y conserva ambos SHA y el Cargo.lock en el artifact. **No se ha ejecutado todavía esta versión corregida.**
