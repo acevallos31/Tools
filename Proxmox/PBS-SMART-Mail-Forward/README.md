@@ -44,3 +44,7 @@ Run [38621684016](https://github.com/acevallos31/Tools/actions/runs/38621684016)
 ## Tercer intento: dependencia interna no publicada
 
 Ejecución [38622558033](https://github.com/acevallos31/Tools/actions/runs/38622558033): la eliminación del reemplazo Debian de Cargo permitió acceder a crates.io, pero falló porque `proxmox-http` no está publicado allí. Según la documentación de [proxmox-rs](https://github.com/proxmox/proxmox-rs), la forma de compilar fuera del repositorio oficial es referenciar **todos** sus crates mediante `[patch.crates-io]`. El workflow ahora obtiene dos revisiones fijadas por SHA: mail-forward `9890c29a3d3da04262fe5564b2321be59928de5e` y proxmox-rs `89c1d597a9d15743049eadcb1add380573265904`, genera los parches locales, resuelve dependencias públicas desde crates.io y conserva ambos SHA y el Cargo.lock en el artifact. **No se ha ejecutado todavía esta versión corregida.**
+
+## Cuarto intento: error del enlazador ARM64
+
+En la [ejecución 38623313190](https://github.com/acevallos31/Tools/actions/runs/38623313190), Cargo descargó y compiló las dependencias, incluidas `proxmox-notify`, `proxmox-http` y el proyecto principal, pero el enlace final falló con `/usr/bin/ld: cannot find -luuid`. La causa es la ausencia del paquete de desarrollo `uuid-dev` en el runner, no una incompatibilidad demostrada con ARM64. El workflow ahora instala `uuid-dev`, verifica `pkg-config uuid/openssl`, inspecciona la arquitectura ELF y falla cuando `ldd` encuentra bibliotecas ausentes. **No se ha ejecutado aún el workflow corregido.**
