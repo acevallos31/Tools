@@ -18,18 +18,29 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config libssl-dev libsystemd-dev clang ca-certificates git
+            build-essential pkg-config libssl-dev libsystemd-dev clang ca-certificates git file
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Checkout upstream Proxmox source
+      - name: Checkout pinned official Proxmox sources
         env:
-          UPSTREAM_REF: master
+          MAIL_FORWARD_SHA: 9890c29a3d3da04262fe5564b2321be59928de5e
+          PROXMOX_RS_SHA: 89c1d597a9d15743049eadcb1add380573265904
         run: |
-          git clone --depth 1 --branch "$UPSTREAM_REF" \
-            https://github.com/proxmox/proxmox-mail-forward.git upstream
+          set -euo pipefail
+          git init -q upstream
+          git -C upstream remote add origin https://github.com/proxmox/proxmox-mail-forward.git
+          git -C upstream fetch --depth 1 origin "$MAIL_FORWARD_SHA"
+          git -C upstream checkout -q --detach FETCH_HEAD
+          test "$(git -C upstream rev-parse HEAD)" = "$MAIL_FORWARD_SHA"
           git -C upstream rev-parse HEAD | tee upstream-commit.txt
+          git init -q proxmox-rs
+          git -C proxmox-rs remote add origin https://github.com/proxmox/proxmox-rs.git
+          git -C proxmox-rs fetch --depth 1 origin "$PROXMOX_RS_SHA"
+          git -C proxmox-rs checkout -q --detach FETCH_HEAD
+          test "$(git -C proxmox-rs rev-parse HEAD)" = "$PROXMOX_RS_SHA"
+          git -C proxmox-rs rev-parse HEAD | tee proxmox-rs-commit.txt
           cat upstream/Cargo.toml
 
       - name: Restore crates.io registry for upstream build
@@ -59,6 +70,32 @@ jobs:
           rm upstream/.cargo/config.toml
           echo 'Use crates.io to resolve dependencies on hosted ARM64 runner'
 
+      - name: Patch all internal Proxmox Rust libraries from official workspace
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib
+          import tomllib
+
+          root = pathlib.Path("proxmox-rs")
+          manifest = tomllib.loads((root / "Cargo.toml").read_text())
+          members = manifest["workspace"]["members"]
+          patches = []
+          for member in members:
+              pkg = tomllib.loads((root / member / "Cargo.toml").read_text())["package"]["name"]
+              if pkg.startswith(("proxmox-", "pbs-", "pve-")):
+                  patches.append((pkg, member))
+          assert patches, "No Proxmox workspace crates found"
+          names = [name for name, _ in patches]
+          assert len(names) == len(set(names)), "Duplicate crate names"
+          with open("upstream/Cargo.toml", "a", encoding="utf-8") as out:
+              out.write("\\n[patch.crates-io]\\n")
+              for name, member in sorted(patches):
+                  out.write(f'{name} = {{ path = "../proxmox-rs/{member}" }}\\n')
+          print(f"Added {len(patches)} official workspace crate patches")
+          PY
+          tail -n 12 upstream/Cargo.toml
+
       - name: Resolve dependencies and compile ARM64 release
         working-directory: upstream
         run: |
@@ -75,7 +112,7 @@ jobs:
           ldd "$BIN" | tee dynamic-dependencies.txt || true
           mkdir -p dist
           cp "$BIN" dist/
-          cp upstream-commit.txt upstream-cargo-config-original.toml dynamic-dependencies.txt upstream/Cargo.lock dist/
+          cp upstream-commit.txt proxmox-rs-commit.txt upstream-cargo-config-original.toml dynamic-dependencies.txt upstream/Cargo.lock dist/
           (cd dist && sha256sum proxmox-mail-forward > SHA256SUMS)
           tar -C dist -czf proxmox-mail-forward-linux-arm64.tar.gz .
 
