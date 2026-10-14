@@ -397,3 +397,19 @@ Resultado:
 
 La medición queda contaminada por una tool extra no solicitada. Para medir el costo real de un único ciclo shell -> resultado -> respuesta, la siguiente prueba debe restringir el agente a `shell` únicamente mediante permisos V2.
 
+
+
+### Prueba de restricción shell-only descartada por loop
+
+Se intentó restringir una ejecución de OpenCode a un único ciclo de shell y dos pasos de modelo mediante un overlay temporal. La ejecución no quedó correctamente limitada:
+
+- el modelo ejecutó `dir`;
+- luego intentó invocar una herramienta de pregunta/interacción;
+- `opencode run` rechazó la pregunta por ser no interactivo;
+- el modelo volvió a ejecutar `dir`;
+- el patrón se repitió, generando un loop.
+
+Dado que una herramienta distinta de shell siguió disponible y el límite esperado de pasos no detuvo el ciclo, esta prueba no se considera válida para medir rendimiento. El overlay de permisos/steps debe considerarse no aplicado o no compatible con la ruta/configuración utilizada en OpenCode 2.0.29.
+
+Acción: abortar con Ctrl+C, limpiar variables temporales de OpenCode y no usar este resultado para estimar latencia.
+
