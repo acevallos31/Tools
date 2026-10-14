@@ -119,6 +119,59 @@ def save_raw_capture(
     return path
 
 
+def _sanitize_model_report(
+    value,
+    *,
+    management_address: Optional[str],
+):
+    """
+    Redacta la dirección de administración de cualquier dato model-facing.
+
+    La captura RAW local se conserva intacta para auditoría. Esta función solo
+    se aplica al reporte estructurado que se devuelve a MCP/Hermes.
+    """
+
+    sensitive = (management_address or "").strip()
+
+    if not sensitive:
+        return value
+
+    if isinstance(value, str):
+        return value.replace(
+            sensitive,
+            "<management-address>",
+        )
+
+    if isinstance(value, list):
+        return [
+            _sanitize_model_report(
+                item,
+                management_address=sensitive,
+            )
+            for item in value
+        ]
+
+    if isinstance(value, tuple):
+        return tuple(
+            _sanitize_model_report(
+                item,
+                management_address=sensitive,
+            )
+            for item in value
+        )
+
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_model_report(
+                item,
+                management_address=sensitive,
+            )
+            for key, item in value.items()
+        }
+
+    return value
+
+
 def analyze_device_traffic(
     client: MikroTikClient,
     interface: Optional[str] = None,
@@ -229,6 +282,14 @@ def analyze_device_traffic(
     report["capture"]["evidence_note"] = (
         "Torch describe flujos y tasas observadas durante esta captura. "
         "No demuestra por sí solo estabilidad, causalidad ni ausencia de amenazas."
+    )
+
+    # La IP/hostname de administración pertenece a la capa de transporte.
+    # Puede aparecer legítimamente dentro de Torch si existe tráfico hacia el
+    # propio router, pero no debe cruzar la frontera model-facing.
+    report = _sanitize_model_report(
+        report,
+        management_address=getattr(client, "host", None),
     )
 
     return report
