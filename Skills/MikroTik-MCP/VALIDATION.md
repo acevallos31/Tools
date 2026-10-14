@@ -288,3 +288,21 @@ Después de recuperar `qwen3-coder:30b` con un prompt mínimo (~1.87 s), se repi
 
 Esto confirma que el timeout previo de 1000 repeticiones no representaba un umbral fijo de contexto; ocurrió mientras el runtime/modelo estaba en un estado transitorio degradado. La siguiente validación debe hacerse en OpenCode/Hermes con sesión nueva, sin modificar la skill MikroTik.
 
+
+
+### OpenCode: causa aislada en snapshots del workspace
+
+Durante el diagnóstico del cliente OpenCode en Windows se observó que el mismo `qwen3-coder:30b` respondía correctamente en un entorno mínimo, pero OpenCode dentro del repositorio podía quedar bloqueado incluso con un saludo simple.
+
+Datos de aislamiento:
+
+- OpenCode: v2.0.29;
+- raíz Git: `F:/proyectos/Tools`;
+- archivos tracked: 31;
+- archivos untracked no ignorados: 14;
+- `git ls-files` y `git status` completan en ~0.1 s;
+- no se encontraron `index.lock` bajo el directorio de snapshots de OpenCode;
+- al iniciar OpenCode con `OPENCODE_CONFIG_CONTENT='{"snapshot":false}'`, el mismo proyecto respondió normalmente (~2.5 s).
+
+Conclusión: el bloqueo de OpenCode queda aislado al mecanismo/estado de snapshots del workspace en este entorno, no al tamaño del repositorio, al modelo Qwen ni al MCP MikroTik. Se recomienda mantener snapshots deshabilitados temporalmente mientras se valida/actualiza OpenCode y conservar Git como mecanismo de recuperación de cambios.
+
