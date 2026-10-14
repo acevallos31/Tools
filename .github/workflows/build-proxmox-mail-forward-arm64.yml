@@ -50,6 +50,15 @@ jobs:
           printf '[source.crates-io]\nregistry = "sparse+https://index.crates.io/"\n' > "$HOME/.cargo/config.toml"
           cargo --version
 
+      - name: Disable Debian vendored registry in upstream clone
+        run: |
+          set -euo pipefail
+          echo 'Upstream Cargo config:'
+          cat upstream/.cargo/config.toml
+          cp upstream/.cargo/config.toml upstream-cargo-config-original.toml
+          rm upstream/.cargo/config.toml
+          echo 'Use crates.io to resolve dependencies on hosted ARM64 runner'
+
       - name: Resolve dependencies and compile ARM64 release
         working-directory: upstream
         run: |
@@ -66,7 +75,7 @@ jobs:
           ldd "$BIN" | tee dynamic-dependencies.txt || true
           mkdir -p dist
           cp "$BIN" dist/
-          cp upstream-commit.txt dynamic-dependencies.txt upstream/Cargo.lock dist/
+          cp upstream-commit.txt upstream-cargo-config-original.toml dynamic-dependencies.txt upstream/Cargo.lock dist/
           (cd dist && sha256sum proxmox-mail-forward > SHA256SUMS)
           tar -C dist -czf proxmox-mail-forward-linux-arm64.tar.gz .
 
