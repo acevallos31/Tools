@@ -227,3 +227,19 @@ Esto contrasta con las pruebas directas pequeñas del mismo endpoint, que sí re
 
 No modificar los schemas ni reducir funcionalidad del MCP para compensar este problema hasta que el backend vuelva a procesar contextos de tamaño agente en tiempos razonables.
 
+
+
+### Prueba escalonada de contexto: fallo desde el primer nivel
+
+Se ejecutó una prueba directa adicional contra el endpoint local, nuevamente sin Hermes/OpenCode/MCP, con `qwen3-coder:30b`, `stream=false`, `max_tokens=5` y contexto sintético basado en repeticiones de `"test "`.
+
+Primer escalón:
+
+- target sintético: 1000 repeticiones;
+- timeout cliente: 60 s;
+- resultado: `TIMEOUT/ERROR`;
+- tiempo observado: ~60.02 s;
+- no hubo usage del proveedor porque la solicitud no completó.
+
+El umbral de degradación actual está por debajo de este primer nivel de prueba. Se requiere una segunda pasada con tamaños menores para localizar el punto de quiebre. Este resultado refuerza que la regresión está en el backend/model runtime y no en el MCP MikroTik.
+
