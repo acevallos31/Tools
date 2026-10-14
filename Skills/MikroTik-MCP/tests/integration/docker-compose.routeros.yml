@@ -1,6 +1,6 @@
 services:
   routeros:
-    image: evilfreelancer/docker-routeros:7.24.4
+    image: evilfreelancer/docker-routeros:latest
     privileged: true
     stdin_open: true
     tty: true

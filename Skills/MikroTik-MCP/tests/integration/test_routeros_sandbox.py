@@ -126,12 +126,32 @@ def _compose_diagnostics() -> str:
     return "\n\n".join(chunks)
 
 
+def _external_diagnostics() -> str:
+    log_path = os.getenv("MIKROTIK_SANDBOX_QEMU_LOG")
+    if not log_path:
+        return "No se configuró MIKROTIK_SANDBOX_QEMU_LOG."
+
+    path = Path(log_path)
+    if not path.exists():
+        return f"QEMU log no existe: {path}"
+
+    try:
+        content = path.read_text(
+            encoding="utf-8",
+            errors="replace",
+        )
+    except Exception as exc:
+        return f"No se pudo leer QEMU log: {exc}"
+
+    return "=== QEMU LOG ===\n" + content[-12000:]
+
+
 def _wait_for_ssh_banner(
     host: str,
     port: int,
     max_wait_seconds: int = 180,
 ) -> None:
-    """Wait for RouterOS itself, not only for Docker port publication."""
+    """Wait for RouterOS itself, not only for a TCP listener."""
 
     deadline = time.monotonic() + max_wait_seconds
     last_error = "sin detalle"
@@ -240,7 +260,6 @@ def _ensure_password(
         if _verify_ssh_auth(host, port, password):
             return
 
-    # Supports an already-initialized/reused local sandbox as well.
     if _verify_ssh_auth(host, port, password):
         return
 
@@ -249,10 +268,54 @@ def _ensure_password(
     )
 
 
+def _external_sandbox() -> dict[str, object] | None:
+    host = os.getenv("MIKROTIK_SANDBOX_HOST")
+    port = os.getenv("MIKROTIK_SANDBOX_PORT")
+    if not host or not port:
+        return None
+
+    return {
+        "host": host,
+        "port": int(port),
+        "password": os.getenv(
+            "MIKROTIK_SANDBOX_PASSWORD",
+            "mikrotik-sandbox-123",
+        ),
+        "expected_version": os.getenv(
+            "MIKROTIK_SANDBOX_EXPECTED_VERSION"
+        ),
+        "external": True,
+    }
+
+
 @pytest.fixture(scope="module")
 def routeros_sandbox():
+    external = _external_sandbox()
+    if external is not None:
+        try:
+            _wait_for_ssh_banner(
+                str(external["host"]),
+                int(external["port"]),
+                max_wait_seconds=300,
+            )
+            _ensure_password(
+                str(external["host"]),
+                int(external["port"]),
+                str(external["password"]),
+            )
+        except Exception as exc:
+            pytest.fail(
+                f"{exc}\n\n{_external_diagnostics()}"
+            )
+
+        yield external
+        return
+
     if not _docker_available():
-        pytest.skip("Docker + Docker Compose no están disponibles.")
+        pytest.skip(
+            "No hay sandbox externo y Docker + Docker Compose "
+            "no están disponibles."
+        )
 
     up = _compose("up", "-d", "routeros")
     if up.returncode != 0:
@@ -264,23 +327,30 @@ def routeros_sandbox():
         )
 
     try:
-        host = "127.0.0.1"
-        port = _compose_port()
-        password = "mikrotik-sandbox-123"
+        sandbox = {
+            "host": "127.0.0.1",
+            "port": _compose_port(),
+            "password": "mikrotik-sandbox-123",
+            "expected_version": None,
+            "external": False,
+        }
 
         try:
-            _wait_for_ssh_banner(host, port)
-            _ensure_password(host, port, password)
+            _wait_for_ssh_banner(
+                str(sandbox["host"]),
+                int(sandbox["port"]),
+            )
+            _ensure_password(
+                str(sandbox["host"]),
+                int(sandbox["port"]),
+                str(sandbox["password"]),
+            )
         except Exception as exc:
             pytest.fail(
                 f"{exc}\n\n{_compose_diagnostics()}"
             )
 
-        yield {
-            "host": host,
-            "port": port,
-            "password": password,
-        }
+        yield sandbox
     finally:
         _compose(
             "down",
@@ -291,10 +361,10 @@ def routeros_sandbox():
 
 def _client(sandbox) -> MikroTikClient:
     client = MikroTikClient(
-        host=sandbox["host"],
-        port=sandbox["port"],
+        host=str(sandbox["host"]),
+        port=int(sandbox["port"]),
         username="admin",
-        password=sandbox["password"],
+        password=str(sandbox["password"]),
     )
     client.connect()
     return client
@@ -317,6 +387,14 @@ def test_read_only_health_inventory(
             parsed["health"]["cpu_load_percent"],
             int,
         )
+
+        expected_version = routeros_sandbox.get(
+            "expected_version"
+        )
+        if expected_version:
+            assert str(expected_version) in str(
+                parsed["device"]["routeros"]
+            )
     finally:
         client.close()
 

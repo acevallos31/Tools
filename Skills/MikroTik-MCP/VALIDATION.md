@@ -36,23 +36,38 @@ Workflow:
 
 `.github/workflows/mikrotik-mcp-integration.yml`
 
-También puede ejecutarse localmente cuando exista Docker + Docker Compose:
+### CI autoritativo
+
+GitHub Actions ejecuta RouterOS CHR **7.24.4 oficial** directamente con QEMU/KVM:
+
+1. descarga `chr-7.24.4.vdi.zip` desde MikroTik;
+2. convierte VDI a qcow2;
+3. inicia `qemu-system-x86_64` con KVM cuando está disponible;
+4. publica únicamente SSH hacia `127.0.0.1:9122`;
+5. el fixture espera el banner SSH, inicializa una contraseña temporal y ejecuta las pruebas read-only.
+
+Este diseño sigue el patrón probado por `tikoci/restraml` para ejecutar CHR dentro de GitHub-hosted runners y elimina la dependencia del CI en imágenes RouterOS de terceros.
+
+### Ejecución local
+
+Cuando no se proporcionan las variables `MIKROTIK_SANDBOX_*`, el fixture puede usar Docker + Docker Compose:
 
 ```powershell
 cd Skills\MikroTik-MCP
 python -m pytest -q -m integration
 ```
 
-El fixture usa `tests/integration/docker-compose.routeros.yml` para levantar un CHR temporal con la imagen `evilfreelancer/docker-routeros:7.24.4`. Se usan dos redes Docker porque el entrypoint upstream reserva `eth0` para el acceso publicado desde el host cuando detecta `eth1`; con una sola red mueve `eth0` al bridge interno y el port publishing puede dejar de ser alcanzable. La contraseña temporal se inicializa únicamente dentro del sandbox y después todas las consultas del producto son read-only.
+El fallback local usa `tests/integration/docker-compose.routeros.yml` con dos redes y la imagen upstream `evilfreelancer/docker-routeros:latest`. Esa ruta sirve para desarrollo local; la validación de versión exacta del gate es la ejecución QEMU del CI y posteriormente el hardware real.
 
-Diagnóstico CI relevante:
+### Historial de diagnóstico
 
-- run #5 / commit `502dffec1040ff5934d281deff471d5dbed5cead`: Docker y la instalación Python pasaron, pero el fixture antiguo de una sola red nunca recibió el banner SSH y terminó con `RouterOS sandbox did not expose an SSH banner in time`;
-- ese fallo queda clasificado como topología del fixture Docker/QEMU, no como fallo demostrado de CPU, inventario o `monitor-traffic`;
-- el fixture corregido captura `docker compose ps`, logs del contenedor y estado/redes de `docker inspect` si RouterOS no llega a SSH.
+- run #5 / commit `502dffec1040ff5934d281deff471d5dbed5cead`: el fixture Testcontainers de una sola red no recibió banner SSH. El entrypoint upstream mueve `eth0` al bridge interno cuando no existe `eth1`, por lo que el port publishing no era una base confiable;
+- run #6 / commit `50d5190b17469cf1f62b3489169bc001a0f6dd67`: la topología de dos redes ya estaba preparada, pero Docker Hub no publicó `evilfreelancer/docker-routeros:7.24.4`; el run falló inmediatamente con `manifest unknown` antes de arrancar RouterOS;
+- a partir del siguiente run, el CI usa CHR 7.24.4 oficial con QEMU directo. Si falla el arranque, se conservan el log de QEMU, PID/proceso y listener SSH.
 
 Criterios:
 
+- CHR reporta RouterOS 7.24.4 en CI;
 - SSH del sandbox disponible;
 - inventario health real parseable;
 - CPU temporal real con valores 0–100;
@@ -61,7 +76,7 @@ Criterios:
 - tasas RX/TX no negativas;
 - no se usan comandos RouterOS arbitrarios desde el MCP.
 
-Si este gate falla, no continuar a hardware real hasta clasificar si el fallo es código, imagen RouterOS, Docker/QEMU o infraestructura de CI.
+Si este gate falla, no continuar a hardware real hasta clasificar si el fallo es código, CHR/QEMU o infraestructura de CI.
 
 ## Gate 3 - hardware real
 
