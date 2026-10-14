@@ -2,6 +2,12 @@ name: MikroTik RouterOS sandbox
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/mikrotik-granular-tools
+    paths:
+      - "Skills/MikroTik-MCP/**"
+      - ".github/workflows/mikrotik-mcp-integration.yml"
 
 permissions:
   contents: read
