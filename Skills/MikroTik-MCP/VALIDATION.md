@@ -343,3 +343,25 @@ Resultado:
 
 Esto demuestra que el backend soporta OpenAI Responses API con function calling. Dado que OpenCode 2.0.29 muestra tool calls como texto usando `@ai-sdk/openai-compatible` + `/v1/chat/completions`, la siguiente prueba recomendada es configurar temporalmente OpenCode con `@ai-sdk/openai` para usar `/v1/responses`, manteniendo `snapshot:false`.
 
+
+
+### OpenCode recuperado: Responses API ejecuta tools correctamente
+
+Se validó OpenCode 2.0.29 con una configuración temporal usando `@ai-sdk/openai` contra el mismo Basecamp y `qwen3-coder:30b`, manteniendo `snapshot:false`.
+
+Resultado observado:
+
+- saludo simple: respuesta normal (~2.8 s);
+- petición para revisar el directorio: OpenCode ejecutó una tool real (`$ dir`);
+- la salida del shell fue capturada y utilizada para redactar la respuesta final;
+- ya no aparecieron etiquetas literales `<function=shell>...</tool_call>`.
+
+Conclusión:
+
+1. `snapshot:false` corrige el bloqueo/hang del workspace en este entorno Windows.
+2. `@ai-sdk/openai` + `/v1/responses` corrige la ejecución de tools con `qwen3-coder:30b`.
+3. El modelo y Basecamp quedan validados para chat y tool calling estructurado.
+4. El fallo previo estaba en la combinación OpenCode 2.0.29 + `@ai-sdk/openai-compatible` sobre `/v1/chat/completions`.
+
+Recomendación operativa: mantener OpenCode con `snapshot:false` y el proveedor `@ai-sdk/openai` para este backend mientras se usa Qwen3-Coder 30B.
+
