@@ -119,3 +119,7 @@ Confirmado por salida de Raspberry: desde `~/pbs-smart-queue-staging/queue-code/
 ### Paso 81.1 — Validación de unidades systemd como root (14-10-2026)
 
 La Raspberry descargó al staging `pbs-smart-queue.service`, `pbs-smart-queue.timer` y `smartd-to-pbs-queued`. La primera verificación, ejecutada como usuario `acevallos`, informó `Command /opt/pbs/smart-alerts/pbs-smart-queue is not executable: Permission denied`, porque el ejecutable está protegido como `root:root 0750`. **No se relajaron los permisos**. Al repetir con `sudo systemd-analyze verify` ambas unidades se validaron: `OK: unidades systemd validas`. `sh -n` validó el adaptador; el contador persistente siguió `pending=0 bytes=0 previously_failed=0`, y PBS siguió `running/healthy`. **Unidades todavía no instaladas ni habilitadas, adaptador de producción sin sustituir.**
+
+### Paso 82 — Unidades systemd instaladas sin activar (14-10-2026)
+
+Salida confirmada del host Raspberry: `pbs-smart-queue.service` y `pbs-smart-queue.timer` instalados en `/etc/systemd/system` con permisos 0644, seguidos de `systemctl daemon-reload`. La validación `sudo systemd-analyze verify` indicó `OK: unidades instaladas y validas`. Estado: timer `disabled`, timer `inactive`, service `inactive`. Cola SQLite `pending=0 bytes=0 previously_failed=0` y contenedor `pbs` `running/healthy`. **No se habilitaron reintentos automáticos y no se sustituyó el adaptador SMART de envío inmediato**. Siguiente: ejecutar manualmente una sola alerta sintética encolada mediante el servicio real y comprobar recepción Gmail y `pending=0`.
