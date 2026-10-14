@@ -32,6 +32,24 @@ jobs:
           git -C upstream rev-parse HEAD | tee upstream-commit.txt
           cat upstream/Cargo.toml
 
+      - name: Restore crates.io registry for upstream build
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cargo"
+          if [ -f "$HOME/.cargo/config.toml" ]; then
+            echo 'Existing Cargo config:'
+            cat "$HOME/.cargo/config.toml"
+            mv "$HOME/.cargo/config.toml" "$HOME/.cargo/config.toml.runner-backup"
+          fi
+          if [ -f "$HOME/.cargo/config" ]; then
+            mv "$HOME/.cargo/config" "$HOME/.cargo/config.runner-backup"
+          fi
+          if [ -f /usr/share/cargo/config.toml ]; then
+            echo 'System Cargo configuration is present'
+          fi
+          printf '[source.crates-io]\nregistry = "sparse+https://index.crates.io/"\n' > "$HOME/.cargo/config.toml"
+          cargo --version
+
       - name: Resolve dependencies and compile ARM64 release
         working-directory: upstream
         run: |
