@@ -1,6 +1,8 @@
 # PBS SMART Mail Forward — Raspberry Pi 5 ARM64
 
-> **Estado del laboratorio (14-10-2026): integración configurada, validada y operativa.** Las pruebas sintéticas de entrega por Gmail fueron confirmadas. No se provocó una falla física SMART, por lo que la recepción de un aviso real se verificará únicamente cuando ocurra un evento legítimo.
+> **V1.0 DESPLEGADA (14-10-2026):** integración sin cola configurada, validada y operativa; recepción de pruebas sintéticas confirmada en Gmail. **V2.0-RC1 EN PREPARACIÓN:** cola local de reintentos y helper corregido, compilados y descargados, pero **todavía no instalados ni activados** en la Raspberry. No se provocó una falla física SMART.
+>
+> **Historial de versiones y compatibilidad:** [VERSIONES.md](./VERSIONES.md). V1 permanece como versión operativa hasta que V2 supere la validación real.
 
 ## Objetivo
 
@@ -97,9 +99,9 @@ Consultar [**OPERACION-Y-RECUPERACION.md**](./OPERACION-Y-RECUPERACION.md) para 
 - No subir contraseñas SMTP, `notifications-priv.cfg`, ni archivos privados de `/opt/pbs/config`.
 - El PR [#4](https://github.com/acevallos31/Tools/pull/4) permanece en **draft**, sin fusionar a `main`.
 
-## Mejora pendiente de despliegue: cola local SQLite (14-10-2026)
+## V2.0-RC1 — Mejora pendiente de despliegue: cola local SQLite (14-10-2026)
 
-**No está activada en la Raspberry todavía.** Se implementaron en la rama la cola de reintentos, tests, adaptador y unidades systemd; consultar [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) antes de desplegar.
+**No está activada en la Raspberry todavía.** El Paso 72 confirmó en el host la integridad del ZIP, del tar.gz y del ejecutable ARM64 V2, sin instalarlo.  Se implementaron en la rama la cola de reintentos, tests, adaptador y unidades systemd; consultar [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) antes de desplegar.
 
 - **Workflow ARM64 con helper de confirmación**: [run 38641594423](https://github.com/acevallos31/Tools/actions/runs/38641594423) — compilación y 5 pruebas aisladas finalizadas correctamente.
 - Artefacto nuevo ZIP SHA256: `43725ddc5dc54f992784aff7913d842899717e5f1aac595cdbcdcd6cd46b90c3`
