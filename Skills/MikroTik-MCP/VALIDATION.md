@@ -476,3 +476,30 @@ Resultado:
 
 La lectura de CPU es point-in-time y no demuestra carga sostenida. Siguiente paso: muestreo temporal real de CPU.
 
+
+
+### Gate 3.3 - CPU temporal real de 5 s aprobado
+
+Se ejecutó `cpu_sample --device laboratorio --duration 5` directamente desde Python/CLI.
+
+Resultado observado:
+
+- ventana solicitada: 5 s;
+- duración real: 5.0 s;
+- intervalo: 1 s;
+- muestras: 5;
+- timestamps UTC presentes;
+- lecturas en aproximadamente 0, 1, 2, 3 y 4 s;
+- mínimo: 26%;
+- máximo: 47%;
+- promedio: 36.4%;
+- mediana: 33%;
+- primera muestra: 47%;
+- última muestra: 26%;
+- backend elapsed: ~9.21 s;
+- extremo a extremo desde PowerShell: ~10.12 s.
+
+La ventana cerró exactamente al tiempo solicitado y no sobrepasó la duración. La lectura instantánea anterior de 100% no representa carga sostenida en esta ventana posterior de 5 s.
+
+`session_reused: false` es esperado en esta prueba porque cada invocación de `python -m mikrotik_skill.cli` crea un proceso nuevo. La reutilización de sesión debe validarse con dos operaciones dentro del mismo proceso Python.
+
