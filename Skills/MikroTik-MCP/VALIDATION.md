@@ -715,3 +715,24 @@ Con esta prueba quedan validados ambos caminos de `charting.py`: CPU e interfaz.
 
 Gate 3 de hardware real queda funcionalmente completo para dispositivos, health, CPU temporal, reutilización SSH, interfaz temporal, Torch, privacidad, gráficos y auditoría. Queda pendiente Gate 4: comportamiento Hermes + Qwen.
 
+
+
+### Gate 4.1 - selección natural de mikrotik_devices funcional, rendimiento pendiente
+
+Se ejecutó Hermes con Qwen local, reasoning desactivado y toolset `mikrotik`, sin `--ignore-rules`, con el prompt natural para listar dispositivos configurados.
+
+Resultado observado:
+
+- respuesta correcta: `laboratorio`;
+- la herramienta/ruta funcional quedó validada;
+- tiempo extremo a extremo: ~36.57 s;
+- input tokens: 11389;
+- output tokens: 78;
+- total tokens: 11467;
+- API calls reportadas: 3;
+- modelo: `qwen3-coder:30b`;
+- reasoning tokens: 0;
+- ejecución completada sin fallo.
+
+Gate 4.1 pasa funcionalmente, pero el rendimiento todavía no se acepta. Las 3 llamadas API sugieren overhead adicional de orquestación/auxiliares; debe aislarse antes de continuar con prompts más costosos.
+
