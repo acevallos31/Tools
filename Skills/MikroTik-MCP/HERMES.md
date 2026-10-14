@@ -18,6 +18,29 @@ Hermes y MCP tienen responsabilidades distintas:
 
 Esto evita cargar descripciones MCP enormes y reduce la ambigüedad de selección en modelos locales.
 
+## Ruta efectiva de configuración en Windows
+
+No asumir que Hermes usa siempre `%USERPROFILE%\.hermes`. Si la variable `HERMES_HOME` está definida, esa ruta es autoritativa para la configuración y estado de Hermes.
+
+Resolverla primero con:
+
+```powershell
+Get-ChildItem Env:HERMES_HOME -ErrorAction SilentlyContinue
+where.exe hermes
+```
+
+El archivo MCP efectivo se busca en:
+
+```text
+$env:HERMES_HOME\config.yaml
+```
+
+Esto evita editar un `config.yaml` inexistente en el perfil del usuario mientras Hermes sigue leyendo otra configuración. El Python usado por el MCP puede ser distinto del entorno interno de Hermes; se valida por separado con:
+
+```powershell
+python -c "import sys, mikrotik_skill; print(sys.executable); print(mikrotik_skill.__file__)"
+```
+
 ## Herramientas MCP
 
 Superficie completa del servidor:
