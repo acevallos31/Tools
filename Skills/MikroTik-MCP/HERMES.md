@@ -189,3 +189,23 @@ Antes de usar esta rama como estable:
 5. revisión del audit log.
 
 Los comandos y prompts de aceptación están en `VALIDATION.md`.
+
+
+## Qwen local: desactivar generación auxiliar de títulos
+
+Con el proveedor local `qwen3-coder:30b` en Basecamp, Hermes puede lanzar una llamada auxiliar de `title_generation` contra el mismo endpoint al inicio de una sesión. En la validación real esa llamada agotó repetidamente su timeout de 30 s y bloqueó/retardó la respuesta principal.
+
+Configuración recomendada para este entorno:
+
+```powershell
+hermes config set auxiliary.title_generation.enabled false
+```
+
+Verificar:
+
+```powershell
+hermes config get auxiliary.title_generation.enabled
+```
+
+Efecto observado en Gate 3: la prueba mínima `hermes --reasoning none --ignore-rules -t terminal -z "Responde únicamente OK"` bajó de aproximadamente 97.3 s a 8.65 s después de desactivar la generación de títulos. Esto no desactiva el modelo principal ni las tools MCP; únicamente evita la mejora automática de títulos mediante una segunda llamada LLM.
+
