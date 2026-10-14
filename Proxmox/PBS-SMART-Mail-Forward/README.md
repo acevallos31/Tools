@@ -59,3 +59,14 @@ En la [ejecución 38623313190](https://github.com/acevallos31/Tools/actions/runs
 - **Sin validar**: compatibilidad de bibliotecas de runtime dentro de la imagen Docker PBS 4.2.8 en Debian Trixie y entrega de email `system-mail` real mediante `smtp-pbs-alerts`.
 - El upstream `src/main.rs` captura errores de notificación, los registra y puede salir con estado 0 incluso sin entrega; verificar **recepción real** en Gmail en la prueba sintética, sin fiarse solo del exit code.
 - No copiar a `/usr/bin` directamente ni activar el `smartd-runner` hasta resolver compatibilidad, persistencia y plan de rollback.
+
+## Validación real — 14 de octubre de 2026
+
+- Raspberry Pi ARM64 con PBS 4.2.8-1 en contenedor Docker `pbs`: todas las dependencias de `proxmox-mail-forward` resolvieron mediante `ldd` y `ldd -r`; contenedor en estado `healthy`.
+- Artefacto descargado desde GitHub Actions: SHA256 del ZIP y del tarball correctos; binario ELF AArch64 de aproximadamente 6.9 MB verificado mediante el `SHA256SUMS` incluido.
+- Binario copiado **temporalmente** a `pbs:/tmp/proxmox-mail-forward` (no persistente).
+- Prueba manual: un mensaje MIME sintético con asunto `[PRUEBA SMART] Raspberry Pi 5 - PBS` fue inyectado mediante `docker exec -i pbs /tmp/proxmox-mail-forward`.
+- **Recepción confirmada por captura en Gmail**: remitente `Proxmox Backup Server - pbs`, asunto y cuerpo del mensaje correctos; se reutilizó el destino SMTP previamente configurado en PBS.
+- Esta validación no activa las alertas automáticas de `smartd`: aún falta persistir el binario fuera del contenedor, montarlo de manera segura y enlazarlo con el runner en el host, con rollback y prueba sintética extremo a extremo.
+- El puente `/opt/pbs/smart-alerts/pbs-smart-forward` actualmente requiere `/usr/bin/proxmox-mail-forward` en el contenedor, por lo que no funcionará hasta configurar el montaje persistente hacia esa ruta.
+- No asumir que las advertencias quedan cubiertas solo por SMTP: antes de habilitar alertas reales, validar si el matcher de PBS acepta el tipo `system-mail` y si existen filtros o exclusiones relevantes.
