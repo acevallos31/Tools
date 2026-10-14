@@ -9,9 +9,9 @@
 | Versión del proyecto | Estado en Raspberry | Funcionalidad |
 |---|---|---|
 | **V1.0 — respaldo funcional** | Conservada para rollback; ya no es el helper activo | `smartd` → `smartd-runner` → `20pbs-smart` → adaptador → helper ARM64 oficial → PBS Notifications SMTP → Gmail; **sin cola ni reintentos persistentes**. |
-| **V2.0-RC1 — despliegue parcial** | **Helper activo** en PBS desde paso 78; **cola y timer aún NO activados** | Helper ARM64 modificado para notificar fallos SMTP; cola SQLite persistente; retry/backoff y unidades systemd; pruebas aisladas y build ARM64 aprobados. |
+| **V2.0-RC1 — en validación final** | **Helper, cola SQLite, temporizador y adaptador SMART encolado activos** desde pasos 78–88; falta confirmar prueba completa desde `smartd-runner` hasta Gmail | Helper ARM64 modificado para notificar fallos SMTP; cola SQLite persistente; retry/backoff y unidades systemd; pruebas aisladas y build ARM64 aprobados. |
 
-**Fecha del registro:** 14 de octubre de 2026. **No confundir el helper V2 activo con la cola de reintentos V2, todavía pendiente de activar.**
+**Fecha del registro:** 14 de octubre de 2026. V2.0-RC1 activada en producción; pendiente validación sintética completa desde `smartd-runner` hasta Gmail antes de declararla estable.
 
 ## V1.0 — Versión operativa validada
 
@@ -32,13 +32,13 @@
 - Respaldo Compose de consolidación: `/opt/pbs/compose.yml.backup-20261014-144827`.
 - **Limitación V1:** el helper oficial puede devolver salida exitosa incluso si un endpoint SMTP falla; no hay persistencia ni reenvío al fallar el envío.
 
-## V2.0-RC1 — Cola persistente, build validado, pendiente de instalar
+## V2.0-RC1 — Cola persistente desplegada, prueba final pendiente
 
 ### Cambios funcionales
 - Agrega `pbs-smart-queue`: SQLite en `/var/spool/pbs-smart-mail`, transacciones durables, cola acotada (500 mensajes / 16 MiB, 256 KiB por mensaje), acceso restringido a root.
 - Alerta se encola primero y un worker manda correos cuando el destino está disponible; retrasos exponenciales de 60 s a 3600 s; lote máximo de 5 mensajes.
-- `pbs-smart-queue.service` y `pbs-smart-queue.timer`: reintentos periódicos y al iniciar el sistema, cuando estén activados.
-- `smartd-to-pbs-queued` sustituirá en el futuro la entrega directa por encolado (el notificador `20pbs-smart` sigue igual).
+- `pbs-smart-queue.service` y `pbs-smart-queue.timer`: reintentos periódicos y al iniciar el sistema, activados y verificados en Paso 86.1.
+- `smartd-to-pbs-queued` reemplaza el envío directo: el notificador `20pbs-smart` ya apunta al adaptador encolado desde Paso 88, con respaldo V1 preservado.
 - Parche fuente reproducible `patch-checked-delivery.py` para que el helper propague errores de envío y de destino.
 - Guardia de compatibilidad: el worker **no confirma ni borra** pendientes si no detecta `checked-delivery-v1` en el helper desplegado.
 
@@ -155,3 +155,15 @@ La captura compartida al ejecutar el Paso 87 permite verificar la cola real `pen
 ### Paso 87 — Preparación final del adaptador encolado completada (14-10-2026)
 
 Salida completa del usuario confirma: `smartd-to-pbs-queued` instalado en `/opt/pbs/smart-alerts/smartd-to-pbs-queued` (`root:root 0750`); copia de respaldo `/opt/pbs/smart-alerts/20pbs-smart.direct.pre-v2` (`root:root 0750`), tras comprobaciones iniciales y `sudo cmp` de origen/destino. `20pbs-smart` seguía usando `exec /opt/pbs/smart-alerts/smartd-to-pbs "$1"`, cola persistente `pending=0 bytes=0 previously_failed=0`, PBS `running/healthy`. La conmutación a `smartd-to-pbs-queued` **aún no estaba realizada** al terminar el paso. Siguiente: sustituir atómicamente solo `20pbs-smart` con preflight y confirmar su contenido. El respaldo contiene la ruta directa anterior.
+
+### Paso 88 — Activación del adaptador SMART encolado (14-10-2026)
+
+La salida real de la Raspberry confirma preflight completo (respaldo coincide con wrapper anterior, nuevo adaptador ejecutable, timer activo, helper `checked-delivery-v1`, cola real vacía), sustitución del wrapper `/etc/smartmontools/run.d/20pbs-smart` y contenido activo:
+
+```sh
+#!/bin/sh
+set -eu
+exec /opt/pbs/smart-alerts/smartd-to-pbs-queued "$1"
+```
+
+PBS permaneció `Estado=running Salud=healthy`. Se conserva `/opt/pbs/smart-alerts/20pbs-smart.direct.pre-v2` (root:root 0750) para rollback. **Falta comprobar el flujo entero `smartd-runner` → cola → worker → PBS → Gmail con prueba sintética antes de declarar V2.0 estable.** No se reiniciaron PBS, Docker ni smartd.
