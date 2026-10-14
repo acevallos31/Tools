@@ -275,3 +275,16 @@ Interpretación: el problema previo no se considera una degradación permanente 
 
 Gate 3 puede reanudarse, pero se deben repetir primero una prueba de contexto moderado y una prueba limpia en OpenCode/Hermes antes de atribuir estabilidad al backend.
 
+
+
+### Contexto moderado vuelve a responder tras recuperación
+
+Después de recuperar `qwen3-coder:30b` con un prompt mínimo (~1.87 s), se repitió una prueba directa con contexto sintético moderado:
+
+- 1000 repeticiones de `"test "`;
+- usage real: 1020 prompt tokens, 2 completion tokens, 1022 total tokens;
+- tiempo: ~12.86 s;
+- respuesta: `OK`.
+
+Esto confirma que el timeout previo de 1000 repeticiones no representaba un umbral fijo de contexto; ocurrió mientras el runtime/modelo estaba en un estado transitorio degradado. La siguiente validación debe hacerse en OpenCode/Hermes con sesión nueva, sin modificar la skill MikroTik.
+
