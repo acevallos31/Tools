@@ -615,3 +615,30 @@ Resultado:
 
 Se observó una muestra puntual de RX/TX en cero alrededor del segundo 23, seguida por tráfico normal; se conserva como evidencia observada y no se interpreta por sí sola como caída de enlace.
 
+
+
+### Gate 3.7 - Torch real detectó fuga model-facing y fue corregida
+
+La captura real `traffic --device laboratorio --interface ether1 --duration 5` funcionó técnicamente:
+
+- `status: ok`;
+- `target: laboratorio`;
+- 70 filas RAW;
+- 49 flujos únicos;
+- 25 flujos con tasa medida;
+- tráfico observado agregado: ~578.18 Kbps;
+- protocolos observados: TCP, UDP e ICMP;
+- sesión SSH conectada.
+
+Sin embargo, el reporte analizado incluyó la dirección de administración del equipo dentro de `top_destinations_*`. Esto violaba la regla de que host/IP de administración pertenece a la capa de transporte y no debe exponerse al modelo.
+
+Corrección aplicada:
+
+- la captura RAW local se conserva intacta para auditoría;
+- el reporte model-facing se sanitiza recursivamente;
+- cualquier coincidencia exacta con `client.host` se reemplaza por `<management-address>`;
+- se ampliaron las pruebas de privacidad para cubrir apariciones anidadas y valores embebidos;
+- GitHub Actions run #121 pasó correctamente después del cambio.
+
+Gate 3.7 permanece pendiente de una repetición real de Torch para confirmar la corrección en hardware.
+
