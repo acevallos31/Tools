@@ -1,6 +1,6 @@
-# V1.0 — Operación y recuperación de SMART → PBS → Gmail (Raspberry Pi 5)
+# V1.0 — Guía histórica y rollback de SMART → PBS → Gmail (Raspberry Pi 5)
 
-Esta guía corresponde a la **V1.0 desplegada** (envío inmediato, sin cola local). La **V2.0-RC1** está preparada, pero no instalada. Ver [VERSIONES.md](./VERSIONES.md) para hashes y estado, y [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) para el procedimiento previsto de migración.
+Esta guía describe la **V1.0 conservada como respaldo** (envío inmediato, sin cola local). **Desde el Paso 88 está activo el adaptador V2.0-RC1 con cola SQLite y timer**. Los comandos y rutas de V1 que aparecen a continuación son históricos y para recuperación; no describen el montaje ni el adaptador actualmente activos. Ver [VERSIONES.md](./VERSIONES.md) para hashes y estado, y [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) para el procedimiento previsto de migración.
 
 **Alcance:** Debian 12 en Raspberry Pi 5; `smartd` supervisa Micron 2400A NVMe y ADATA SU650 SATA; contenedor `pbs` con configuración persistente en `/opt/pbs/compose.yml`. Validado con mensajes sintéticos y recepción confirmada en Gmail el **14 de octubre de 2026**.
 
