@@ -1,8 +1,8 @@
 # V2.0-RC1 — Cola local persistente de reintentos SMART → PBS → Gmail
 
-Historial y diferencias con la **V1.0 desplegada**: [VERSIONES.md](./VERSIONES.md).
+Historial y diferencias con la **V1.0 preservada para rollback**: [VERSIONES.md](./VERSIONES.md).
 
-**Estado al 14-10-2026:** código, pruebas aisladas y compilación ARM64 validados; el binario V2 fue **descargado y verificado** en `~/pbs-smart-queue-staging/helper/` (ZIP, tar.gz y SHA256 del ejecutable: OK). **NO está instalado ni activado**: V1.0 sigue prestando el servicio; primero hay que verificar la interfaz de confirmación dentro del contenedor, desplegar el helper corregido con rollback y comprobar SMTP con una prueba sintética antes de habilitar la cola.
+**Estado al 14-10-2026 (tras Paso 88):** helper ARM64 V2 corregido activo, cola SQLite instalada, worker y timer habilitados, ejecución periódica verificada, prueba desde SQLite hasta Gmail recibida, y `20pbs-smart` conmutado a `smartd-to-pbs-queued` con respaldo V1. Pruebas de fallo y recuperación aisladas aprobadas. **Pendiente prueba sintética final desde `smartd-runner` hasta Gmail; por ello sigue siendo RC1.**
 
 ## Motivación: no confiar en el código de salida del helper original
 
