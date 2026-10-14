@@ -195,3 +195,19 @@ Para cada gate registrar:
 - para hardware/Hermes, correlation IDs del audit log cuando ayuden al diagnóstico.
 
 Las credenciales, IP de administración, username, secretos DPAPI y contenido sensible de perfiles no deben copiarse a este documento ni al repositorio.
+
+
+### Hallazgo de rendimiento Hermes/Qwen durante Gate 3
+
+En la validación Windows + Hermes + Qwen local se confirmó que `mikrotik_devices` funciona y devuelve únicamente el perfil lógico `laboratorio`, pero el turno del agente presenta una sobrecarga significativa antes/después de la llamada MCP:
+
+- prueba `-t terminal`: ~7.09 s;
+- prueba con toolsets completos y `--ignore-rules`: ~90.87 s;
+- prueba `-t mikrotik` con las cuatro tools: ~67.34 s;
+- prueba temporal con solo `mikrotik_devices`: ~129.87 s;
+- usage de una ejecución `-t mikrotik --ignore-rules`: 15,489 input tokens, 115 output tokens, 15,604 total tokens y 4 llamadas API;
+- `auxiliary` fue 0 en esa ejecución, por lo que la generación de títulos no explica esa sobrecarga residual;
+- el endpoint OpenAI-compatible directo sí responde correctamente a chat, streaming, tool calling y streaming+tool calling.
+
+Conclusión provisional: la funcionalidad MCP está operativa, pero Gate 3 queda bloqueado por latencia del loop/prompt de Hermes-Qwen. No atribuir la demora al SSH, RouterOS o a la ejecución de `mikrotik_devices` hasta analizar las cuatro llamadas principales y su uso/latencia individual.
+
