@@ -546,3 +546,36 @@ Conclusiones de aceptación:
 - la sesión SSH persistente se reutiliza dentro del mismo proceso;
 - el pico inicial de CPU no representa carga sostenida durante la ventana; no se atribuye causalidad sin evidencia adicional.
 
+
+
+### Gate 3.5 - tráfico real de interfaz 5 s aprobado
+
+Se ejecutó `interface_sample --device laboratorio --interface ether1 --duration 5`.
+
+Resultado:
+
+- `status: ok`;
+- fuente: `/interface monitor-traffic ether1 once`;
+- duración solicitada: 5 s;
+- duración real: ~5.001 s;
+- muestras: 5;
+- timestamps UTC presentes;
+- RX:
+  - mínimo: 125300 bps;
+  - máximo: 304900 bps;
+  - promedio: 255000 bps;
+  - mediana: 272900 bps;
+- TX:
+  - mínimo: 36500 bps;
+  - máximo: 167600 bps;
+  - promedio: 103420 bps;
+  - mediana: 87500 bps;
+- RX packets/s promedio: 48.8;
+- TX packets/s promedio: 38.6;
+- queue drops observados: 0;
+- backend elapsed: ~9.21 s;
+- extremo a extremo desde PowerShell: ~10.03 s;
+- sesión conectada correctamente.
+
+La medición corresponde a tasas actuales observadas en la ventana y no a contadores acumulados.
+
