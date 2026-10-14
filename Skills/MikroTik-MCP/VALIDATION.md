@@ -306,3 +306,23 @@ Datos de aislamiento:
 
 Conclusión: el bloqueo de OpenCode queda aislado al mecanismo/estado de snapshots del workspace en este entorno, no al tamaño del repositorio, al modelo Qwen ni al MCP MikroTik. Se recomienda mantener snapshots deshabilitados temporalmente mientras se valida/actualiza OpenCode y conservar Git como mecanismo de recuperación de cambios.
 
+
+
+### OpenCode tool calling: backend confirmado, fallo de compatibilidad en cliente
+
+Se ejecutó una prueba directa contra el endpoint OpenAI-compatible con `qwen3-coder:30b`, definiendo una función `shell(command: string)` y solicitando ejecutar `dir`.
+
+Resultado directo del backend:
+
+- latencia: ~5.02 s;
+- `message.content`: vacío;
+- `message.tool_calls`: presente;
+- tool: `shell`;
+- arguments: `{"command":"dir"}`;
+- `finish_reason`: `tool_calls`;
+- usage: 299 prompt tokens, 22 completion tokens, 321 total tokens.
+
+Por tanto, Basecamp/Qwen/Ollama-compatible entrega correctamente el formato OpenAI de tool calling. Sin embargo, OpenCode 2.0.29, usando `@ai-sdk/openai-compatible`, muestra llamadas equivalentes como texto `<function=shell>...</tool_call>` en lugar de ejecutarlas.
+
+Conclusión: el problema de tool execution queda aislado a la capa de compatibilidad/interpretación de OpenCode para proveedores OpenAI-compatible con Qwen3-Coder, no al modelo ni al MCP MikroTik.
+
