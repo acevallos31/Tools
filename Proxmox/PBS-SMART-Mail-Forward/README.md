@@ -1,72 +1,98 @@
-# Proxmox Backup Server — SMART mail-forward ARM64
+# PBS SMART Mail Forward — Raspberry Pi 5 ARM64
 
-## Estado
-Investigación y compilación aislada. **No está desplegado ni probado con PBS de producción.**
+> **Estado del laboratorio (14-10-2026): integración configurada, validada y operativa.** Las pruebas sintéticas de entrega por Gmail fueron confirmadas. No se provocó una falla física SMART, por lo que la recepción de un aviso real se verificará únicamente cuando ocurra un evento legítimo.
 
-PBS 4.2.8 ARM64 ejecutado en Docker en Raspberry Pi 5. El host Debian ejecuta un único `smartd` y supervisa `/dev/nvme0` (Micron) y `/dev/sda` (ADATA USB/SAT). El contenedor PBS ya puede mostrar SMART. El endpoint `smtp-pbs-alerts` de PBS envió correctamente un correo de prueba a Gmail.
+## Objetivo
 
-La imagen actual **no incluye** `proxmox-mail-forward`, y ni host ni contenedor disponen de `/usr/bin/mail`. El script del host `/opt/pbs/smart-alerts/pbs-smart-forward` está creado, pero **no debe activarse todavía**.
+Reutilizar el destino SMTP de **Proxmox Backup Server** para las alertas de discos generadas por `smartd` del host Raspberry Pi, sin instalar otro MTA ni duplicar las credenciales de Gmail.
 
-## Construcción
+```text
+Micron 2400A NVMe ─┐
+                   ├── smartd (host Debian 12)
+ADATA SU650 SATA ──┘       │
+                           └─ smartd-runner
+                                 └─ /etc/smartmontools/run.d/20pbs-smart
+                                       └─ /opt/pbs/smart-alerts/smartd-to-pbs
+                                             └─ /opt/pbs/smart-alerts/pbs-smart-forward
+                                                   └─ docker exec -i pbs
+                                                         └─ /usr/bin/proxmox-mail-forward
+                                                               └─ PBS Notifications
+                                                                     └─ smtp-pbs-alerts → Gmail
+```
 
-Workflow manual: `.github/workflows/build-proxmox-mail-forward-arm64.yml`. Usa un runner hospedado ARM64, obtiene el código fuente oficial de `proxmox/proxmox-mail-forward`, compila Rust y publica un artifact descargable por 14 días.
+## Entorno y estado comprobados
 
-1. GitHub → Actions → **Build Proxmox Mail Forward ARM64** → Run workflow, seleccionando esta rama.
-2. Revisar logs: resultado de Cargo, arquitectura aarch64, listado `ldd`, SHA256 y commit exacto de origen.
-3. Descargar artifact únicamente para evaluación. **No copiar ni ejecutar en PBS automáticamente.**
+| Elemento | Configuración / evidencia |
+|---|---|
+| Hardware | Raspberry Pi 5 ARM64 |
+| Host | Debian 12, `smartmontools` activo |
+| Contenedor | `pbs`, PBS 4.2.8-1 ARM64 (`dockurr/proxmox-backup:latest`) |
+| Discos | `/dev/nvme0` Micron 2400A; `/dev/sda` ADATA SU650 vía SAT/USB |
+| Datastore | Host `/mnt/pbs` sobre `/dev/sda1` ext4, bind a `/var/lib/proxmox-backup` |
+| Config PBS | Host `/opt/pbs/config` bind a `/etc/proxmox-backup` |
+| SMTP y matcher | `smtp-pbs-alerts` y `pbs-important-alerts`; recepción Gmail confirmada |
+| `smartd` | Unidad `smartmontools` activa, estado de systemd: `Next check of 2 devices` |
+| Binario ARM64 | SHA256 `a2db207ddf30226eb0be4ad537fc0f563f65a925e54fea7549bc7d2fc468267c` |
+| Host | `/opt/pbs/smart-alerts/bin/proxmox-mail-forward`, `root:root`, 0755 |
+| Contenedor | `/usr/bin/proxmox-mail-forward`, bind **solo lectura** |
+| Compose principal | `/opt/pbs/compose.yml` integra tres volúmenes; `config --quiet` OK |
+| Reinicio del contenedor | `unless-stopped`; `running/healthy` después de recreación |
+| Notificador host | `20pbs-smart` activo vía `run-parts --lsbsysinit` |
+| Notificador antiguo | `10mail` conservado, pero sin bit de ejecución porque no existe `/usr/bin/mail` |
 
-### Compatibilidad que falta validar
+## Archivos desplegados en el host
 
-La versión upstream de `proxmox-mail-forward` puede usar una revisión de las librerías `proxmox-notify` distinta de la integrada en PBS 4.2.8. Se necesita inspeccionar sus dependencias dinámicas y comprobar el comportamiento real con configuraciones de prueba antes de producción. El workflow usa `cargo --locked`: si upstream no aporta un Cargo.lock o el lock no resuelve correctamente, la ejecución fallará deliberadamente; no se omite la verificación sin revisar las dependencias.
+- `/opt/pbs/compose.yml`: configuración **principal**; incluye montaje persistente del helper.
+- `/opt/pbs/compose.smart-mail.override.yml`: archivo usado durante el despliegue inicial; **no hace falta utilizarlo** para las recreaciones futuras si se usa el principal ya consolidado.
+- `/opt/pbs/compose.yml.backup-20261014-144827`: respaldo anterior a la consolidación.
+- `/opt/pbs/smart-alerts/bin/proxmox-mail-forward`: ejecutable ARM64 autenticado con SHA256.
+- `/opt/pbs/smart-alerts/pbs-smart-forward`: valida el mensaje y el contenedor, lo pasa al helper mediante `docker exec -i`.
+- `/opt/pbs/smart-alerts/smartd-to-pbs`: transforma el cuerpo de `smartd` + `SMARTD_SUBJECT` en un mensaje MIME.
+- `/etc/smartmontools/run.d/20pbs-smart`: invoca el adaptador anterior.
+- `/etc/smartmontools/run.d/10mail`: conserva el script Debian original, sin ejecución.
+- `/opt/pbs/smart-alerts/10mail.original`: copia de respaldo del notificador original.
 
-### Diseño de integración previsto (no desplegado)
+No se cambió `/etc/smartd.conf`; mantiene:
 
-`smartd` (host) → `smartd-runner` → puente del host → `docker exec -i pbs proxmox-mail-forward` → matcher `pbs-important-alerts` → destino `smtp-pbs-alerts` → Gmail.
+```text
+DEVICESCAN -d removable -n standby -m root -M exec /usr/share/smartmontools/smartd-runner
+```
 
-La ruta anterior **no está validada de extremo a extremo**. El helper oficial puede requerir entorno y rutas específicas del servicio de correo; probarlo primero con mensaje sintético y sin incluir credenciales en logs.
+La carpeta `run.d` se consulta por cada aviso. El puente usa un fichero temporal y lo elimina al terminar. Los registros locales de `smartd` y el almacenamiento de backups son independientes del SMTP.
 
-Antes de activar:
-- Validar y fijar por SHA una revisión fuente compatible; documentar dependencias, licencias y hashes.
-- Empaquetar el ejecutable en una imagen derivada o montaje persistente **solo después** de prueba de compatibilidad.
-- Revisar el script `pbs-smart-forward`: actualmente exige el ejecutable en `/usr/bin/proxmox-mail-forward`; asegurar que reciba un mensaje MIME válido y que los errores queden registrados.
-- Configurar invocación desde `smartd-runner`, sustituyendo o inhabilitando el `10mail` fallido, evitando duplicados y revisando permisos.
-- Ensayar alerta sintética, verificar la llegada a Gmail, probar fallo de contenedor y una eventual recreación.
-- No reiniciar, desmontar discos ni ejecutar tests SMART destructivos durante la preparación.
+## Validaciones ejecutadas
 
-## Riesgos
+1. **Compilación:** GitHub Actions [run 38623764393](https://github.com/acevallos31/Tools/actions/runs/38623764393), artifact `11922951805`, runner ARM64. Paquete descargado en Raspberry y comprobado con SHA256.
+2. **Binario:** `ELF 64-bit ... ARM aarch64`; `ldd` y `ldd -r` dentro del contenedor resolvieron todas las bibliotecas.
+3. **Notificación interna:** mensaje sintético inyectado en `proxmox-mail-forward`; Gmail recibido.
+4. **Puente host → contenedor:** mensaje MIME desde Raspberry vía `pbs-smart-forward`; Gmail recibido.
+5. **Adaptador real de `smartd`:** cuerpo + `SMARTD_SUBJECT` vía `smartd-to-pbs`; Gmail recibido.
+6. **Camino `smartd-runner` + `run.d`:** alerta sintética `[PRUEBA FINAL SMARTD] Raspberry Pi 5`; **Gmail recibido**.
+7. **Monitoreo de discos:** `smartctl --scan` detectó SAT en `/dev/sda` y NVMe en `/dev/nvme0`; `smartmontools.service` informó próximo chequeo de **2 dispositivos**. Se observaron archivos de estado de ambos en `/var/lib/smartmontools/`.
+8. **Persistencia:** contenedor recreado una vez con montaje de solo lectura, retornó `running/healthy`; configuración principal consolidada después y verificada equivalente a la configuración activa.
+9. **Auditoría final:** tres volúmenes declarados, montaje activo `SoloLectura=true`, únicamente `20pbs-smart` habilitado, `smartd` activo y `/mnt/pbs` montado en ext4 `rw,noatime`.
 
-No introducir contraseñas SMTP en repositorio ni registrar `notifications-priv.cfg`. Las capacidades `SYS_ADMIN` y `SYS_RAWIO` de PBS ya concedidas tienen implicaciones de seguridad; evaluar el mínimo privilegio posteriormente. No sobreescribir `/opt/pbs/compose.yml` de producción en este workflow.
+## Construcción reproducible
 
-## Primera compilación en GitHub Actions
+Workflow: [`.github/workflows/build-proxmox-mail-forward-arm64.yml`](../../.github/workflows/build-proxmox-mail-forward-arm64.yml).
 
-Run [38621684016](https://github.com/acevallos31/Tools/actions/runs/38621684016), job 116050525231: **falló en `cargo generate-lockfile`**, antes de compilar. El runner redirigía `crates-io` a `/usr/share/cargo/registry`, que no existía (`failed to query replaced source registry`). El workflow de la rama de pruebas fue modificado para preparar `$HOME/.cargo/config.toml` con el registro público crates.io; **requiere una nueva ejecución manual**, no `Re-run failed jobs` sobre el commit antiguo. Aún no se ha verificado que esta corrección resuelva toda la compilación.
+Revisiones upstream fijas:
 
-## Tercer intento: dependencia interna no publicada
+- `proxmox/proxmox-mail-forward` — `9890c29a3d3da04262fe5564b2321be59928de5e`
+- `proxmox/proxmox-rs` — `89c1d597a9d15743049eadcb1add380573265904`
 
-Ejecución [38622558033](https://github.com/acevallos31/Tools/actions/runs/38622558033): la eliminación del reemplazo Debian de Cargo permitió acceder a crates.io, pero falló porque `proxmox-http` no está publicado allí. Según la documentación de [proxmox-rs](https://github.com/proxmox/proxmox-rs), la forma de compilar fuera del repositorio oficial es referenciar **todos** sus crates mediante `[patch.crates-io]`. El workflow ahora obtiene dos revisiones fijadas por SHA: mail-forward `9890c29a3d3da04262fe5564b2321be59928de5e` y proxmox-rs `89c1d597a9d15743049eadcb1add380573265904`, genera los parches locales, resuelve dependencias públicas desde crates.io y conserva ambos SHA y el Cargo.lock en el artifact. **No se ha ejecutado todavía esta versión corregida.**
+El build necesita `uuid-dev`, enlaza contra bibliotecas del sistema y empaqueta el ejecutable, `Cargo.lock`, commits de origen y `SHA256SUMS`. El artifact de GitHub Actions puede caducar: conservar el paquete verificado o ejecutar nuevamente el workflow cuando sea necesario.
 
-## Cuarto intento: error del enlazador ARM64
+SHA256 del archivo tar.gz verificado: `3644a3bd6320087dcf2c3d8e93e753ac5d24b1f8a873567951c8bbed799a0601`.
 
-En la [ejecución 38623313190](https://github.com/acevallos31/Tools/actions/runs/38623313190), Cargo descargó y compiló las dependencias, incluidas `proxmox-notify`, `proxmox-http` y el proyecto principal, pero el enlace final falló con `/usr/bin/ld: cannot find -luuid`. La causa es la ausencia del paquete de desarrollo `uuid-dev` en el runner, no una incompatibilidad demostrada con ARM64. El workflow ahora instala `uuid-dev`, verifica `pkg-config uuid/openssl`, inspecciona la arquitectura ELF y falla cuando `ldd` encuentra bibliotecas ausentes. **No se ha ejecutado aún el workflow corregido.**
+## Operación, actualización y recuperación
 
-## Quinta ejecución: compilación exitosa (pendiente de despliegue)
-- Run: [38623764393](https://github.com/acevallos31/Tools/actions/runs/38623764393)
-- Job: 116057594625
-- Artifact: [proxmox-mail-forward-linux-arm64](https://github.com/acevallos31/Tools/actions/runs/38623764393/artifacts/11922951805)
-- Estado: **success** tras instalar `uuid-dev`, que resuelve el error previo `cannot find -luuid`.
-- El comando `file` confirmó ELF64 AArch64; `readelf` confirmó `Machine: AArch64`. En el runner `ldd` resolvió `libssl.so.3`, `libcrypto.so.3`, `libuuid.so.1`, `libc.so.6`, `libgcc_s.so.1` y `libm.so.6`, sin bibliotecas ausentes.
-- Incluye revisiones upstream, lockfile, bibliotecas dinámicas y checksum del ejecutable.
-- **Sin validar**: compatibilidad de bibliotecas de runtime dentro de la imagen Docker PBS 4.2.8 en Debian Trixie y entrega de email `system-mail` real mediante `smtp-pbs-alerts`.
-- El upstream `src/main.rs` captura errores de notificación, los registra y puede salir con estado 0 incluso sin entrega; verificar **recepción real** en Gmail en la prueba sintética, sin fiarse solo del exit code.
-- No copiar a `/usr/bin` directamente ni activar el `smartd-runner` hasta resolver compatibilidad, persistencia y plan de rollback.
+Consultar [**OPERACION-Y-RECUPERACION.md**](./OPERACION-Y-RECUPERACION.md) para los comandos de diagnóstico, prueba sintética, actualización segura, respaldos y rollback.
 
-## Validación real — 14 de octubre de 2026
+### Limitaciones importantes
 
-- Raspberry Pi ARM64 con PBS 4.2.8-1 en contenedor Docker `pbs`: todas las dependencias de `proxmox-mail-forward` resolvieron mediante `ldd` y `ldd -r`; contenedor en estado `healthy`.
-- Artefacto descargado desde GitHub Actions: SHA256 del ZIP y del tarball correctos; binario ELF AArch64 de aproximadamente 6.9 MB verificado mediante el `SHA256SUMS` incluido.
-- Binario copiado **temporalmente** a `pbs:/tmp/proxmox-mail-forward` (no persistente).
-- Prueba manual: un mensaje MIME sintético con asunto `[PRUEBA SMART] Raspberry Pi 5 - PBS` fue inyectado mediante `docker exec -i pbs /tmp/proxmox-mail-forward`.
-- **Recepción confirmada por captura en Gmail**: remitente `Proxmox Backup Server - pbs`, asunto y cuerpo del mensaje correctos; se reutilizó el destino SMTP previamente configurado en PBS.
-- Esta validación no activa las alertas automáticas de `smartd`: aún falta persistir el binario fuera del contenedor, montarlo de manera segura y enlazarlo con el runner en el host, con rollback y prueba sintética extremo a extremo.
-- El puente `/opt/pbs/smart-alerts/pbs-smart-forward` actualmente requiere `/usr/bin/proxmox-mail-forward` en el contenedor, por lo que no funcionará hasta configurar el montaje persistente hacia esa ruta.
-- No asumir que las advertencias quedan cubiertas solo por SMTP: antes de habilitar alertas reales, validar si el matcher de PBS acepta el tipo `system-mail` y si existen filtros o exclusiones relevantes.
+- La prueba de extremo a extremo fue **sintética**; no se indujo un fallo real del hardware.
+- `proxmox-mail-forward` puede devolver exit code 0 aunque la notificación falle más adelante. El criterio de éxito es la **recepción efectiva** de Gmail y la revisión de logs.
+- No hay cola de reintentos persistente en el puente: si PBS, Docker, la conectividad o Gmail no están disponibles en el momento del aviso, puede perderse el envío. Se recomienda revisar periódicamente el servicio y considerar una cola local en una mejora posterior.
+- No subir contraseñas SMTP, `notifications-priv.cfg`, ni archivos privados de `/opt/pbs/config`.
+- El PR [#4](https://github.com/acevallos31/Tools/pull/4) permanece en **draft**, sin fusionar a `main`.
