@@ -694,5 +694,5 @@ Resultado observado:
 - no se detectó la dirección de administración en el evento de auditoría;
 - no se detectó el username SSH en el evento de auditoría.
 
-La generación binaria del gráfico y la auditoría quedan aprobadas. La verificación visual del gráfico depende del cliente local que abre el PNG.
+La generación binaria del gráfico y la auditoría quedan aprobadas. El usuario confirmó además que el PNG se abrió correctamente en Windows, por lo que la verificación visual del gráfico también queda aprobada.
 
