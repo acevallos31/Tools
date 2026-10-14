@@ -642,3 +642,27 @@ Corrección aplicada:
 
 Gate 3.7 permanece pendiente de una repetición real de Torch para confirmar la corrección en hardware.
 
+
+
+### Gate 3.7 - Torch real aprobado después de sanitización
+
+Se repitió `traffic --device laboratorio --interface ether1 --duration 5` después del fix de privacidad.
+
+Resultado:
+
+- `status: ok`;
+- `target: laboratorio`;
+- 70 filas RAW;
+- 49 flujos únicos;
+- 32 flujos con tasa medida;
+- tráfico agregado observado: ~128.73 Kbps;
+- protocolos observados: TCP, UDP e ICMP;
+- la dirección de administración ya no se expone en claro;
+- las apariciones model-facing fueron sustituidas por `<management-address>`;
+- no se expuso username SSH ni secretos;
+- sesión SSH conectada correctamente.
+
+Gate 3.7 queda aprobado.
+
+Durante esta repetición se detectó un detalle menor de consistencia: el timestamp de Torch era naive/local, mientras CPU e interfaces usan UTC timezone-aware. Se corrigió `capture_torch` para emitir UTC con `+00:00` y se añadió una prueba automática que lo exige.
+
