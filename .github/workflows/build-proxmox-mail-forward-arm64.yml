@@ -110,6 +110,17 @@ jobs:
           PY
           tail -n 12 upstream/Cargo.toml
 
+      - name: Test queue logic with fake transport (no network or PBS)
+        run: |
+          python3 -m unittest discover -s Proxmox/PBS-SMART-Mail-Forward/tests -v
+
+      - name: Patch checked delivery on pinned Proxmox sources
+        run: |
+          set -euo pipefail
+          python3 Proxmox/PBS-SMART-Mail-Forward/patch-checked-delivery.py proxmox-rs upstream
+          grep -q 'pub fn send_checked' proxmox-rs/proxmox-notify/src/lib.rs
+          grep -q 'checked-delivery-v1' upstream/src/main.rs
+
       - name: Resolve dependencies and compile ARM64 release
         working-directory: upstream
         run: |
@@ -121,6 +132,7 @@ jobs:
           set -euo pipefail
           BIN=upstream/target/release/proxmox-mail-forward
           test -x "$BIN"
+          test "$("$BIN" --pbs-smart-queue-protocol)" = "checked-delivery-v1"
           file "$BIN"
           file "$BIN" | grep -q 'aarch64'
           ldd "$BIN" | tee dynamic-dependencies.txt
@@ -131,6 +143,7 @@ jobs:
           readelf -h "$BIN" | grep -E 'Class:|Machine:'
           mkdir -p dist
           cp "$BIN" dist/
+          cp Proxmox/PBS-SMART-Mail-Forward/patch-checked-delivery.py dist/
           cp upstream-commit.txt proxmox-rs-commit.txt upstream-cargo-config-original.toml dynamic-dependencies.txt upstream/Cargo.lock dist/
           (cd dist && sha256sum proxmox-mail-forward > SHA256SUMS)
           tar -C dist -czf proxmox-mail-forward-linux-arm64.tar.gz .
