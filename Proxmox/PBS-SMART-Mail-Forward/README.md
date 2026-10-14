@@ -36,3 +36,7 @@ Antes de activar:
 ## Riesgos
 
 No introducir contraseñas SMTP en repositorio ni registrar `notifications-priv.cfg`. Las capacidades `SYS_ADMIN` y `SYS_RAWIO` de PBS ya concedidas tienen implicaciones de seguridad; evaluar el mínimo privilegio posteriormente. No sobreescribir `/opt/pbs/compose.yml` de producción en este workflow.
+
+## Primera compilación en GitHub Actions
+
+Run [38621684016](https://github.com/acevallos31/Tools/actions/runs/38621684016), job 116050525231: **falló en `cargo generate-lockfile`**, antes de compilar. El runner redirigía `crates-io` a `/usr/share/cargo/registry`, que no existía (`failed to query replaced source registry`). El workflow de la rama de pruebas fue modificado para preparar `$HOME/.cargo/config.toml` con el registro público crates.io; **requiere una nueva ejecución manual**, no `Re-run failed jobs` sobre el commit antiguo. Aún no se ha verificado que esta corrección resuelva toda la compilación.
