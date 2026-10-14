@@ -151,3 +151,7 @@ Captura Raspberry: `systemctl list-timers --all pbs-smart-queue.timer` mostró `
 ### Paso 87 — Estado previo a conmutación SMART (14-10-2026)
 
 La captura compartida al ejecutar el Paso 87 permite verificar la cola real `pending=0 bytes=0 previously_failed=0`, el contenedor PBS `Estado=running Salud=healthy` y que `/etc/smartmontools/run.d/20pbs-smart` **todavía contiene** `exec /opt/pbs/smart-alerts/smartd-to-pbs "$1"` (adaptador V1 de envío directo). La parte visible **no muestra** salida de verificación de permisos/copia de respaldo; verificar ambos archivos en el preflight antes de efectuar la sustitución atómica del wrapper. Timer V2 ya había sido validado como activo y periódico en el Paso 86.1. No declarar conmutación completada sin evidencia.
+
+### Paso 87 — Preparación final del adaptador encolado completada (14-10-2026)
+
+Salida completa del usuario confirma: `smartd-to-pbs-queued` instalado en `/opt/pbs/smart-alerts/smartd-to-pbs-queued` (`root:root 0750`); copia de respaldo `/opt/pbs/smart-alerts/20pbs-smart.direct.pre-v2` (`root:root 0750`), tras comprobaciones iniciales y `sudo cmp` de origen/destino. `20pbs-smart` seguía usando `exec /opt/pbs/smart-alerts/smartd-to-pbs "$1"`, cola persistente `pending=0 bytes=0 previously_failed=0`, PBS `running/healthy`. La conmutación a `smartd-to-pbs-queued` **aún no estaba realizada** al terminar el paso. Siguiente: sustituir atómicamente solo `20pbs-smart` con preflight y confirmar su contenido. El respaldo contiene la ruta directa anterior.
