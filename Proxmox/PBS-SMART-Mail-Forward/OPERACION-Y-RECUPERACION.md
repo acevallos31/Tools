@@ -1,10 +1,10 @@
 # V1.0 — Guía histórica y rollback de SMART → PBS → Gmail (Raspberry Pi 5)
 
-Esta guía describe la **V1.0 conservada como respaldo** (envío inmediato, sin cola local). **Desde el Paso 88 está activo el adaptador V2.0-RC1 con cola SQLite y timer**. Los comandos y rutas de V1 que aparecen a continuación son históricos y para recuperación; no describen el montaje ni el adaptador actualmente activos. Ver [VERSIONES.md](./VERSIONES.md) para hashes y estado, y [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) para el procedimiento previsto de migración.
+**Documento histórico de V1.0, exclusivamente para consulta y recuperación.** V2.0 está **activa y validada** desde el Paso 89: adaptador encolado, SQLite y timer, con recepción final confirmada en Gmail. Las rutas de montaje y algunas limitaciones que siguen aquí se refieren al diseño **antiguo V1**, no al despliegue actual. Para operaciones reales y rollback de V2 usar [README.md](./README.md), [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) y [VERSIONES.md](./VERSIONES.md). **No ejecutar bloques de recuperación histórica sobre producción sin verificar el estado actual y los mensajes pendientes.**
 
 **Alcance:** Debian 12 en Raspberry Pi 5; `smartd` supervisa Micron 2400A NVMe y ADATA SU650 SATA; contenedor `pbs` con configuración persistente en `/opt/pbs/compose.yml`. Validado con mensajes sintéticos y recepción confirmada en Gmail el **14 de octubre de 2026**.
 
-## 1. Comprobación rutinaria (solo lectura)
+## 1. Comprobación rutinaria (referencia histórica V1, solo lectura)
 
 ```bash
 sudo systemctl is-active smartmontools
@@ -17,7 +17,7 @@ sudo docker compose -p pbs -f /opt/pbs/compose.yml config --quiet
 findmnt /mnt/pbs
 ```
 
-Esperado: `smartmontools` activo, **2 dispositivos** en el estado de systemd, `20pbs-smart` activo, PBS `running/healthy`, helper montado desde `/opt/pbs/smart-alerts/bin` en modo solo lectura, datastore `/mnt/pbs` operativo. `smartctl --scan` por sí solo demuestra detección SMART, no configuración activa de `smartd`: comprobar también `systemctl status smartmontools`.
+**Esperado en V1 histórica:** `smartmontools` activo, 2 dispositivos en el estado de systemd, `20pbs-smart` activo, PBS `running/healthy`, helper montado desde `/opt/pbs/smart-alerts/bin` en modo solo lectura, datastore `/mnt/pbs` operativo. **En V2 activa el helper se monta desde `versions/V2.0-RC1/`, no desde `bin/`.** `smartctl --scan` por sí solo demuestra detección SMART, no configuración activa de `smartd`: comprobar también `systemctl status smartmontools`.
 
 ### Registros
 
@@ -61,14 +61,14 @@ sudo env SMARTD_SUBJECT='[PRUEBA FINAL SMARTD] Raspberry Pi 5' \
 /opt/pbs/compose.yml.backup-20261014-144827        respaldo previo a consolidación
 ```
 
-SHA256 correcto del binario: `a2db207ddf30226eb0be4ad537fc0f563f65a925e54fea7549bc7d2fc468267c`.
+**SHA256 del binario histórico V1 (no del helper activo V2):** `a2db207ddf30226eb0be4ad537fc0f563f65a925e54fea7549bc7d2fc468267c`.
 
 ```bash
 sudo sha256sum /opt/pbs/smart-alerts/bin/proxmox-mail-forward
 sudo docker exec pbs sha256sum /usr/bin/proxmox-mail-forward
 ```
 
-El montaje declarado en `/opt/pbs/compose.yml`:
+**El montaje declarado en el Compose histórico V1** (en el Compose actual V2 el origen es `/opt/pbs/smart-alerts/versions/V2.0-RC1/proxmox-mail-forward`):
 
 ```yaml
 - type: bind
@@ -128,7 +128,7 @@ sudo docker exec pbs test -x /usr/bin/proxmox-mail-forward && echo helper-OK
 sudo docker compose -p pbs -f /opt/pbs/compose.yml config --quiet
 ```
 
-No cambiar contraseñas ni editar `notifications-priv.cfg` para diagnosticar una caída sin tener evidencias. Comprobar el destino SMTP de PBS mediante la interfaz administrativa. Si el contenedor está parado, el script del host devuelve error: **no hay reintentos persistentes**.
+No cambiar contraseñas ni editar `notifications-priv.cfg` para diagnosticar una caída sin tener evidencias. Comprobar el destino SMTP de PBS mediante la interfaz administrativa. En **V1**, si el contenedor está parado, el script del host devuelve error y no hay reintentos persistentes. **En V2 actual**, la alerta se almacena en SQLite y el worker la reintentará cuando PBS esté disponible, dentro de los límites documentados.
 
 ### C. Volver al Compose anterior (solo si resulta estrictamente necesario)
 
@@ -138,8 +138,8 @@ El respaldo `/opt/pbs/compose.yml.backup-20261014-144827` contiene la configurac
 
 - El ejecutable ARM64 está en el host con propietario `root:root`, modo `0755`, montado solo lectura. **No** asignar setuid.
 - El helper reutiliza la configuración interna de notificaciones de PBS; no requiere otro usuario SMTP ni contraseñas en los scripts. No publicar `notifications-priv.cfg` ni secretos de la configuración Docker.
-- `proxmox-mail-forward` puede finalizar con estado 0 incluso cuando el envío falla: verificar Gmail; revisar logs de PBS si no llega.
+- **Solo helper original V1:** `proxmox-mail-forward` puede finalizar con estado 0 incluso cuando el envío falla. El helper V2 activo usa el protocolo `checked-delivery-v1`, y se comprobó recepción Gmail con mensajes sintéticos.
 - Se probó un mensaje sintético; **no** se provocó un evento físico real. La monitorización real de ambos dispositivos aparece activa en systemd.
-- Sin mecanismo de cola local ni reintentos: una alerta emitida durante caída de PBS/SMTP puede no entregarse. Mejora futura: cola segura + retry/backoff y prueba controlada de indisponibilidad.
+- **Solo V1 histórica:** carecía de cola persistente; esa limitación motivó V2, que ahora dispone de SQLite y reintentos. Las pruebas de fallos SMTP fueron simuladas en un laboratorio aislado, no mediante indisponibilidad real de Gmail.
 - Las notificaciones de tipo `info` dependen de filtros de PBS; no modificar el matcher para resolver alertas SMART sin analizar previamente el efecto en el resto de notificaciones.
 - Cambios bajo PR [#4](https://github.com/acevallos31/Tools/pull/4), rama `feat/pbs-smart-mail-forward-arm64`; **mantener draft, sin merge a main** hasta aprobación.
