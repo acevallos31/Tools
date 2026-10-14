@@ -1,8 +1,8 @@
 # PBS SMART Mail Forward — Raspberry Pi 5 ARM64
 
-> **V1.0 DESPLEGADA (14-10-2026):** integración sin cola configurada, validada y operativa; recepción de pruebas sintéticas confirmada en Gmail. **V2.0-RC1 EN PREPARACIÓN:** cola local de reintentos y helper corregido, compilados y descargados, pero **todavía no instalados ni activados** en la Raspberry. No se provocó una falla física SMART.
+> **Estado tras Paso 78 (14-10-2026):** el **helper V2.0-RC1 ya está activo** en PBS y el servicio está saludable. **La cola SQLite, el adaptador encolado y el timer todavía NO están activados**; la entrega SMART sigue siendo inmediata, sin reintentos persistentes. **V1.0 se conserva como respaldo para rollback**. Pruebas sintéticas de Gmail confirmadas, sin fallas físicas provocadas.
 >
-> **Historial de versiones y compatibilidad:** [VERSIONES.md](./VERSIONES.md). V1 permanece como versión operativa hasta que V2 supere la validación real.
+> **Historial de versiones y compatibilidad:** [VERSIONES.md](./VERSIONES.md). Helper V2 desplegado; cola V2 pendiente de validación e instalación.
 
 ## Objetivo
 
