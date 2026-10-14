@@ -1,0 +1,27 @@
+#!/bin/sh
+# Durable smartd-to-PBS adapter. Install only after patched helper is active.
+set -eu
+INPUT="${1:-}"
+if [ -z "$INPUT" ] || [ ! -r "$INPUT" ]; then
+    echo "ERROR: mensaje SMART no disponible" >&2
+    exit 1
+fi
+SUBJECT=$(printf '%s' "${SMARTD_SUBJECT:-SMARTD disk warning}" | tr '\r\n' '  ')
+MAIL_FILE=$(mktemp /tmp/smartd-pbs.XXXXXXXX)
+trap 'rm -f "$MAIL_FILE"' EXIT
+{
+    printf 'From: SMART Monitor <smartd@raspberrypi.local>\n'
+    printf 'To: root@localhost\n'
+    printf 'Subject: %s\n' "$SUBJECT"
+    printf 'Date: %s\n' "$(LC_ALL=C date -R)"
+    printf 'MIME-Version: 1.0\n'
+    printf 'Content-Type: text/plain; charset=UTF-8\n'
+    printf '\n'
+    cat "$INPUT"
+} > "$MAIL_FILE"
+# Ack here means reliably queued on disk, NOT necessarily delivered to Gmail.
+/opt/pbs/smart-alerts/pbs-smart-queue enqueue "$MAIL_FILE"
+# Deliver promptly when systemd is available. The minute timer is fallback.
+if ! /usr/bin/systemctl start --no-block pbs-smart-queue.service; then
+    echo 'SMART queued; immediate worker start failed; timer will retry' >&2
+fi
