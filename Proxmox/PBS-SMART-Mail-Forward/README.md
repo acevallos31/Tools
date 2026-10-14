@@ -48,3 +48,14 @@ Ejecución [38622558033](https://github.com/acevallos31/Tools/actions/runs/38622
 ## Cuarto intento: error del enlazador ARM64
 
 En la [ejecución 38623313190](https://github.com/acevallos31/Tools/actions/runs/38623313190), Cargo descargó y compiló las dependencias, incluidas `proxmox-notify`, `proxmox-http` y el proyecto principal, pero el enlace final falló con `/usr/bin/ld: cannot find -luuid`. La causa es la ausencia del paquete de desarrollo `uuid-dev` en el runner, no una incompatibilidad demostrada con ARM64. El workflow ahora instala `uuid-dev`, verifica `pkg-config uuid/openssl`, inspecciona la arquitectura ELF y falla cuando `ldd` encuentra bibliotecas ausentes. **No se ha ejecutado aún el workflow corregido.**
+
+## Quinta ejecución: compilación exitosa (pendiente de despliegue)
+- Run: [38623764393](https://github.com/acevallos31/Tools/actions/runs/38623764393)
+- Job: 116057594625
+- Artifact: [proxmox-mail-forward-linux-arm64](https://github.com/acevallos31/Tools/actions/runs/38623764393/artifacts/11922951805)
+- Estado: **success** tras instalar `uuid-dev`, que resuelve el error previo `cannot find -luuid`.
+- El comando `file` confirmó ELF64 AArch64; `readelf` confirmó `Machine: AArch64`. En el runner `ldd` resolvió `libssl.so.3`, `libcrypto.so.3`, `libuuid.so.1`, `libc.so.6`, `libgcc_s.so.1` y `libm.so.6`, sin bibliotecas ausentes.
+- Incluye revisiones upstream, lockfile, bibliotecas dinámicas y checksum del ejecutable.
+- **Sin validar**: compatibilidad de bibliotecas de runtime dentro de la imagen Docker PBS 4.2.8 en Debian Trixie y entrega de email `system-mail` real mediante `smtp-pbs-alerts`.
+- El upstream `src/main.rs` captura errores de notificación, los registra y puede salir con estado 0 incluso sin entrega; verificar **recepción real** en Gmail en la prueba sintética, sin fiarse solo del exit code.
+- No copiar a `/usr/bin` directamente ni activar el `smartd-runner` hasta resolver compatibilidad, persistencia y plan de rollback.
