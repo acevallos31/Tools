@@ -696,3 +696,22 @@ Resultado observado:
 
 La generación binaria del gráfico y la auditoría quedan aprobadas. El usuario confirmó además que el PNG se abrió correctamente en Windows, por lo que la verificación visual del gráfico también queda aprobada.
 
+
+
+### Gate 3.9 - gráfico real de interfaz aprobado
+
+Se ejecutó `mikrotik_status(device="laboratorio", section="interfaces", interface="ether1", duration=5, interval=1, chart=True)`.
+
+Resultado observado:
+
+- contenido MCP: texto + imagen;
+- `chart_created: true`;
+- firma PNG válida;
+- el PNG se abrió correctamente en Windows;
+- el gráfico mostró las series RX y TX para `ether1`;
+- el gráfico se generó a partir de las mismas muestras reales de `monitor-traffic`.
+
+Con esta prueba quedan validados ambos caminos de `charting.py`: CPU e interfaz.
+
+Gate 3 de hardware real queda funcionalmente completo para dispositivos, health, CPU temporal, reutilización SSH, interfaz temporal, Torch, privacidad, gráficos y auditoría. Queda pendiente Gate 4: comportamiento Hermes + Qwen.
+
