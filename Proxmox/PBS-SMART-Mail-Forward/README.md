@@ -96,3 +96,14 @@ Consultar [**OPERACION-Y-RECUPERACION.md**](./OPERACION-Y-RECUPERACION.md) para 
 - No hay cola de reintentos persistente en el puente: si PBS, Docker, la conectividad o Gmail no están disponibles en el momento del aviso, puede perderse el envío. Se recomienda revisar periódicamente el servicio y considerar una cola local en una mejora posterior.
 - No subir contraseñas SMTP, `notifications-priv.cfg`, ni archivos privados de `/opt/pbs/config`.
 - El PR [#4](https://github.com/acevallos31/Tools/pull/4) permanece en **draft**, sin fusionar a `main`.
+
+## Mejora pendiente de despliegue: cola local SQLite (14-10-2026)
+
+**No está activada en la Raspberry todavía.** Se implementaron en la rama la cola de reintentos, tests, adaptador y unidades systemd; consultar [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) antes de desplegar.
+
+- **Workflow ARM64 con helper de confirmación**: [run 38641594423](https://github.com/acevallos31/Tools/actions/runs/38641594423) — compilación y 5 pruebas aisladas finalizadas correctamente.
+- Artefacto nuevo ZIP SHA256: `43725ddc5dc54f992784aff7913d842899717e5f1aac595cdbcdcd6cd46b90c3`
+- Paquete tar.gz SHA256: `c5c8de901f20e9f93ddb99407be598d26c0d2c66228b25034966a07ff0566b41`
+- **Binario ARM64 corregido SHA256:** `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35`
+- **Helper viejo actualmente desplegado:** `a2db207ddf30226eb0be4ad537fc0f563f65a925e54fea7549bc7d2fc468267c`; **NO usarlo para confirmar una alerta encolada**. El worker comprueba el protocolo `checked-delivery-v1` y, si no está, conserva los mensajes.
+- Activación solo tras reemplazar y validar el helper nuevo y realizar prueba SMTP sintética sin interrumpir backups.
