@@ -87,3 +87,12 @@ Con el helper corregido ubicado **temporalmente** en `pbs:/tmp/proxmox-mail-forw
 ### Paso 75 — Prueba negativa de entrada V2 (14-10-2026)
 
 Se ejecutó `docker exec -i pbs /tmp/proxmox-mail-forward-v2 </dev/null` desde la Raspberry. El binario informó `could not forward mail: could not parse forwarded email` y terminó con **código de salida 1**. PBS permaneció `running/healthy`. Esto verifica el rechazo y señalización de **entrada inválida**, pero **no** constituye aún una prueba de fallo SMTP o del transporte ni de recuperación de la cola. El helper V1 instalado y el camino actual de notificación permanecen sin cambios.
+
+### Paso 76 — Dos binarios respaldados por versión (14-10-2026)
+
+Comprobación real enviada desde Raspberry:
+- Binario V1 original validado por SHA256 y copiado a `/opt/pbs/smart-alerts/versions/V1.0/proxmox-mail-forward` con `root:root 0755`; SHA256 `a2db207ddf30226eb0be4ad537fc0f563f65a925e54fea7549bc7d2fc468267c`.
+- Binario V2.0-RC1 descargado validado por SHA256 y copiado a `/opt/pbs/smart-alerts/versions/V2.0-RC1/proxmox-mail-forward` con `root:root 0755`; SHA256 `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35`.
+- Se confirmó que **el ejecutable activo en `pbs:/usr/bin/proxmox-mail-forward` es aún V1**, con el hash `a2db207d...`, y que PBS sigue `running/healthy`.
+- **Aún no** se ha cambiado el montaje Docker Compose, reiniciado PBS, ni activado la cola.
+- Plan de despliegue reversible: cuando llegue la ventana aprobada, cambiar **solo** el `source` del bind mount en `/opt/pbs/compose.yml` desde `/opt/pbs/smart-alerts/bin/proxmox-mail-forward` a `/opt/pbs/smart-alerts/versions/V2.0-RC1/proxmox-mail-forward`, verificar la equivalencia del resto de la configuración y recrear PBS con tareas inactivas. Para rollback, volver al origen anterior sin alterar ninguno de los dos binarios versionados.
