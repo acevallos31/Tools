@@ -75,3 +75,7 @@
 - Conservación de logs locales `smartd`, PBS y datastore en ambas versiones.
 
 Ver procedimientos técnicos en [OPERACION-Y-RECUPERACION.md](./OPERACION-Y-RECUPERACION.md) (V1) y [QUEUE-Y-REINTENTOS.md](./QUEUE-Y-REINTENTOS.md) (V2).
+
+### Paso 73 — Prueba temporal de compatibilidad V2 en PBS (14-10-2026)
+
+Evidencia entregada desde Raspberry Pi: `docker cp` del nuevo helper a `pbs:/tmp/proxmox-mail-forward-v2`, SHA256 `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35` correcto, `--pbs-smart-queue-protocol` respondió `checked-delivery-v1`, `ldd -r` resolvió todas las dependencias ARM64 y `docker inspect pbs` reportó `running/healthy`. **No instalado** en el montaje `/usr/bin/proxmox-mail-forward`, V1 sigue activa. Pendiente prueba SMTP sintética con este ejecutable V2 y verificación de errores antes de cambiar a V2.
