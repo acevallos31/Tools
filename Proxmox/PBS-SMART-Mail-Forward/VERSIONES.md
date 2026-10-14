@@ -115,3 +115,7 @@ El usuario descargó `pbs-smart-queue` y `tests/test_queue.py` de la rama versio
 ### Paso 80 — Programa SQLite instalado sin activar timer (14-10-2026)
 
 Confirmado por salida de Raspberry: desde `~/pbs-smart-queue-staging/queue-code/pbs-smart-queue` se instaló `/opt/pbs/smart-alerts/pbs-smart-queue` como `root:root` modo `0750`; `cmp` coincidió. Se inicializó `/var/spool/pbs-smart-mail` con `root:root` modo `0700`, y `sudo /opt/pbs/smart-alerts/pbs-smart-queue status` mostró `pending=0 bytes=0 previously_failed=0`. Contenedor `pbs` siguió `running/healthy`. **No se instalaron ni activaron las unidades systemd de retry, ni se cambió el adaptador SMART a encolado.** La versión V2 del helper sí está operativa desde el Paso 78.
+
+### Paso 81.1 — Validación de unidades systemd como root (14-10-2026)
+
+La Raspberry descargó al staging `pbs-smart-queue.service`, `pbs-smart-queue.timer` y `smartd-to-pbs-queued`. La primera verificación, ejecutada como usuario `acevallos`, informó `Command /opt/pbs/smart-alerts/pbs-smart-queue is not executable: Permission denied`, porque el ejecutable está protegido como `root:root 0750`. **No se relajaron los permisos**. Al repetir con `sudo systemd-analyze verify` ambas unidades se validaron: `OK: unidades systemd validas`. `sh -n` validó el adaptador; el contador persistente siguió `pending=0 bytes=0 previously_failed=0`, y PBS siguió `running/healthy`. **Unidades todavía no instaladas ni habilitadas, adaptador de producción sin sustituir.**
