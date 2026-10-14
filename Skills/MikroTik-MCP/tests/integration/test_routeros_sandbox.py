@@ -4,12 +4,10 @@ import os
 import socket
 import subprocess
 import time
+from pathlib import Path
 
 import paramiko
 import pytest
-
-pytest.importorskip("testcontainers.core.container")
-from testcontainers.core.container import DockerContainer
 
 from mikrotik_skill.client import MikroTikClient
 from mikrotik_skill.cpu_sampling import sample_cpu
@@ -20,39 +18,143 @@ from mikrotik_skill.inventory_parser import parse_inventory
 
 pytestmark = pytest.mark.integration
 
+COMPOSE_FILE = Path(__file__).with_name("docker-compose.routeros.yml")
+COMPOSE_PROJECT = f"mikrotik-mcp-routeros-{os.getpid()}"
+
+
+def _run(
+    command: list[str],
+    *,
+    check: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=check,
+    )
+
+
+def _compose(
+    *args: str,
+    check: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    return _run(
+        [
+            "docker",
+            "compose",
+            "-p",
+            COMPOSE_PROJECT,
+            "-f",
+            str(COMPOSE_FILE),
+            *args,
+        ],
+        check=check,
+    )
+
 
 def _docker_available() -> bool:
     try:
-        return subprocess.run(
-            ["docker", "info"],
-            capture_output=True,
-            text=True,
-            check=False,
-        ).returncode == 0
+        return (
+            _run(["docker", "info"]).returncode == 0
+            and _run(["docker", "compose", "version"]).returncode == 0
+        )
     except Exception:
         return False
+
+
+def _compose_port() -> int:
+    result = _compose("port", "routeros", "22")
+    if result.returncode != 0:
+        raise RuntimeError(
+            "No se pudo obtener el puerto SSH publicado por Docker Compose: "
+            f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+
+    line = result.stdout.strip().splitlines()[-1]
+    try:
+        return int(line.rsplit(":", 1)[1])
+    except (IndexError, ValueError) as exc:
+        raise RuntimeError(
+            f"Formato inesperado de 'docker compose port': {line!r}"
+        ) from exc
+
+
+def _compose_diagnostics() -> str:
+    chunks: list[str] = []
+
+    ps = _compose("ps", "-a")
+    chunks.append(
+        "=== docker compose ps -a ===\n"
+        + (ps.stdout or ps.stderr or "(sin salida)")
+    )
+
+    logs = _compose(
+        "logs",
+        "--no-color",
+        "--tail",
+        "250",
+        "routeros",
+    )
+    chunks.append(
+        "=== docker compose logs routeros ===\n"
+        + (logs.stdout or logs.stderr or "(sin salida)")
+    )
+
+    cid = _compose("ps", "-q", "routeros")
+    container_id = cid.stdout.strip()
+    if container_id:
+        inspect = _run(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                (
+                    "status={{.State.Status}} "
+                    "exit={{.State.ExitCode}} "
+                    "error={{.State.Error}} "
+                    "networks={{json .NetworkSettings.Networks}}"
+                ),
+                container_id,
+            ]
+        )
+        chunks.append(
+            "=== docker inspect ===\n"
+            + (inspect.stdout or inspect.stderr or "(sin salida)")
+        )
+
+    return "\n\n".join(chunks)
 
 
 def _wait_for_ssh_banner(
     host: str,
     port: int,
-    max_attempts: int = 60,
-    delay: int = 5,
+    max_wait_seconds: int = 180,
 ) -> None:
-    """Wait for RouterOS itself, not just QEMU hostfwd accepting TCP."""
+    """Wait for RouterOS itself, not only for Docker port publication."""
 
-    for _ in range(max_attempts):
+    deadline = time.monotonic() + max_wait_seconds
+    last_error = "sin detalle"
+
+    while time.monotonic() < deadline:
         try:
-            with socket.create_connection((host, port), timeout=5) as sock:
-                sock.settimeout(5)
-                if sock.recv(64).startswith(b"SSH-"):
+            with socket.create_connection(
+                (host, port),
+                timeout=2,
+            ) as sock:
+                sock.settimeout(2)
+                banner = sock.recv(64)
+                if banner.startswith(b"SSH-"):
                     return
-        except Exception:
-            pass
-        time.sleep(delay)
+                last_error = f"banner inesperado: {banner!r}"
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+
+        time.sleep(2)
 
     raise RuntimeError(
-        "RouterOS sandbox did not expose an SSH banner in time."
+        "RouterOS sandbox no expuso un banner SSH dentro de "
+        f"{max_wait_seconds}s. Último estado: {last_error}"
     )
 
 
@@ -132,54 +234,47 @@ def _ensure_password(
     port: int,
     password: str,
 ) -> None:
-    # Fresh evilfreelancer/docker-routeros images boot with an empty admin
-    # password. Set it once in the isolated fixture, then verify before tests.
+    # Fresh CHR starts with admin and an empty password. Set a temporary
+    # password only inside this disposable sandbox, then verify SSH.
     if _try_set_initial_password(host, port, password):
         if _verify_ssh_auth(host, port, password):
             return
 
-    # Also supports an already-initialized/reused sandbox.
+    # Supports an already-initialized/reused local sandbox as well.
     if _verify_ssh_auth(host, port, password):
         return
 
     raise RuntimeError(
-        "Unable to authenticate to RouterOS sandbox over SSH."
+        "No se pudo autenticar al RouterOS sandbox por SSH."
     )
 
 
 @pytest.fixture(scope="module")
 def routeros_sandbox():
     if not _docker_available():
-        pytest.skip("Docker is not available.")
+        pytest.skip("Docker + Docker Compose no están disponibles.")
 
-    kwargs = {
-        "privileged": True,
-        "cap_add": ["NET_ADMIN", "NET_RAW"],
-    }
-
-    if os.name != "nt":
-        kwargs["devices"] = [
-            "/dev/net/tun:/dev/net/tun"
-        ]
-
-    container = (
-        DockerContainer(
-            "evilfreelancer/docker-routeros:latest"
+    up = _compose("up", "-d", "routeros")
+    if up.returncode != 0:
+        pytest.fail(
+            "No se pudo iniciar RouterOS con Docker Compose.\n\n"
+            + (up.stderr or up.stdout)
+            + "\n\n"
+            + _compose_diagnostics()
         )
-        .with_exposed_ports(22)
-        .with_kwargs(**kwargs)
-    )
 
     try:
-        container.start()
-        host = container.get_container_host_ip()
-        port = int(
-            container.get_exposed_port(22)
-        )
+        host = "127.0.0.1"
+        port = _compose_port()
         password = "mikrotik-sandbox-123"
 
-        _wait_for_ssh_banner(host, port)
-        _ensure_password(host, port, password)
+        try:
+            _wait_for_ssh_banner(host, port)
+            _ensure_password(host, port, password)
+        except Exception as exc:
+            pytest.fail(
+                f"{exc}\n\n{_compose_diagnostics()}"
+            )
 
         yield {
             "host": host,
@@ -187,10 +282,11 @@ def routeros_sandbox():
             "password": password,
         }
     finally:
-        try:
-            container.stop()
-        except Exception:
-            pass
+        _compose(
+            "down",
+            "-v",
+            "--remove-orphans",
+        )
 
 
 def _client(sandbox) -> MikroTikClient:

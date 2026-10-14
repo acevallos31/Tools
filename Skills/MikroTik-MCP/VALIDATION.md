@@ -36,14 +36,20 @@ Workflow:
 
 `.github/workflows/mikrotik-mcp-integration.yml`
 
-También puede ejecutarse localmente cuando exista Docker:
+También puede ejecutarse localmente cuando exista Docker + Docker Compose:
 
 ```powershell
 cd Skills\MikroTik-MCP
 python -m pytest -q -m integration
 ```
 
-El fixture levanta un RouterOS temporal mediante Docker/QEMU, inicializa únicamente la contraseña del sandbox y ejecuta después consultas read-only.
+El fixture usa `tests/integration/docker-compose.routeros.yml` para levantar un CHR temporal con la imagen `evilfreelancer/docker-routeros:7.24.4`. Se usan dos redes Docker porque el entrypoint upstream reserva `eth0` para el acceso publicado desde el host cuando detecta `eth1`; con una sola red mueve `eth0` al bridge interno y el port publishing puede dejar de ser alcanzable. La contraseña temporal se inicializa únicamente dentro del sandbox y después todas las consultas del producto son read-only.
+
+Diagnóstico CI relevante:
+
+- run #5 / commit `502dffec1040ff5934d281deff471d5dbed5cead`: Docker y la instalación Python pasaron, pero el fixture antiguo de una sola red nunca recibió el banner SSH y terminó con `RouterOS sandbox did not expose an SSH banner in time`;
+- ese fallo queda clasificado como topología del fixture Docker/QEMU, no como fallo demostrado de CPU, inventario o `monitor-traffic`;
+- el fixture corregido captura `docker compose ps`, logs del contenedor y estado/redes de `docker inspect` si RouterOS no llega a SSH.
 
 Criterios:
 
