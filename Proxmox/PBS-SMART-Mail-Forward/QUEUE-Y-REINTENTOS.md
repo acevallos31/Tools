@@ -1,6 +1,8 @@
-# Cola local persistente de reintentos — SMART → PBS → Gmail
+# V2.0-RC1 — Cola local persistente de reintentos SMART → PBS → Gmail
 
-**Estado:** código y pruebas aisladas preparados. **NO activado aún en la Raspberry Pi**: primero deben compilarse, verificarse y desplegarse las correcciones del helper ARM64, y comprobarse sin tareas de backup activas.
+Historial y diferencias con la **V1.0 desplegada**: [VERSIONES.md](./VERSIONES.md).
+
+**Estado al 14-10-2026:** código, pruebas aisladas y compilación ARM64 validados; el binario V2 fue **descargado y verificado** en `~/pbs-smart-queue-staging/helper/` (ZIP, tar.gz y SHA256 del ejecutable: OK). **NO está instalado ni activado**: V1.0 sigue prestando el servicio; primero hay que verificar la interfaz de confirmación dentro del contenedor, desplegar el helper corregido con rollback y comprobar SMTP con una prueba sintética antes de habilitar la cola.
 
 ## Motivación: no confiar en el código de salida del helper original
 
