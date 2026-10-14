@@ -89,9 +89,9 @@ jobs:
           names = [name for name, _ in patches]
           assert len(names) == len(set(names)), "Duplicate crate names"
           with open("upstream/Cargo.toml", "a", encoding="utf-8") as out:
-              out.write("\\n[patch.crates-io]\\n")
+              out.write("\n[patch.crates-io]\n")
               for name, member in sorted(patches):
-                  out.write(f'{name} = {{ path = "../proxmox-rs/{member}" }}\\n')
+                  out.write(f'{name} = {{ path = "../proxmox-rs/{member}" }}\n')
           print(f"Added {len(patches)} official workspace crate patches")
           PY
           tail -n 12 upstream/Cargo.toml
