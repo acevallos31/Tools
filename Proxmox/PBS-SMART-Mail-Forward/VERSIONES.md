@@ -83,3 +83,7 @@ Evidencia entregada desde Raspberry Pi: `docker cp` del nuevo helper a `pbs:/tmp
 ### Paso 74 — Prueba SMTP sintética V2 recibida (14-10-2026)
 
 Con el helper corregido ubicado **temporalmente** en `pbs:/tmp/proxmox-mail-forward-v2` se envió un mensaje MIME sintético con asunto `[PRUEBA V2] SMART Queue - Raspberry Pi 5`. El usuario confirmó mediante captura la **recepción en Gmail** desde el remitente `Proxmox Backup Server - pbs` y contenido que indica `Version: V2.0-RC1` y `Protocolo: checked-delivery-v1`. Esto prueba aceptación y entrega de este mensaje de ensayo por la ruta PBS SMTP existente. **No se reemplazó el helper V1 del montaje**, no se activó aún la cola local, y todavía falta probar el caso de fallo con salida no cero, la integración de la cola y el rollback.
+
+### Paso 75 — Prueba negativa de entrada V2 (14-10-2026)
+
+Se ejecutó `docker exec -i pbs /tmp/proxmox-mail-forward-v2 </dev/null` desde la Raspberry. El binario informó `could not forward mail: could not parse forwarded email` y terminó con **código de salida 1**. PBS permaneció `running/healthy`. Esto verifica el rechazo y señalización de **entrada inválida**, pero **no** constituye aún una prueba de fallo SMTP o del transporte ni de recuperación de la cola. El helper V1 instalado y el camino actual de notificación permanecen sin cambios.
