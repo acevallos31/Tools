@@ -211,3 +211,19 @@ En la validación Windows + Hermes + Qwen local se confirmó que `mikrotik_devic
 
 Conclusión provisional: la funcionalidad MCP está operativa, pero Gate 3 queda bloqueado por latencia del loop/prompt de Hermes-Qwen. No atribuir la demora al SSH, RouterOS o a la ejecución de `mikrotik_devices` hasta analizar las cuatro llamadas principales y su uso/latencia individual.
 
+
+
+### Confirmación: degradación del backend con contexto grande
+
+Se ejecutó una prueba directa contra el endpoint OpenAI-compatible del proveedor local, sin Hermes, sin OpenCode, sin MCP y sin RouterOS. La petición usó `qwen3-coder:30b`, `stream=false`, `max_tokens=5` y un contexto sintético grande de aproximadamente 15k unidades `"test "`.
+
+Resultado observado en 2026-10-14:
+
+- la llamada directa agotó `TimeoutSec 180`;
+- tiempo medido por el cliente: ~180.14 s;
+- no se recibió objeto `response` ni usage porque el request terminó por timeout.
+
+Esto contrasta con las pruebas directas pequeñas del mismo endpoint, que sí responden correctamente, y con los registros históricos donde prompts de ~15k tokens respondían en pocos segundos. Por tanto, el bloqueo actual de Gate 3 se clasifica provisionalmente como degradación/regresión externa del backend Basecamp/Qwen para contextos grandes, no como un fallo demostrado del MCP MikroTik, SSH o RouterOS.
+
+No modificar los schemas ni reducir funcionalidad del MCP para compensar este problema hasta que el backend vuelva a procesar contextos de tamaño agente en tiempos razonables.
+
