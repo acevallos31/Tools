@@ -736,3 +736,27 @@ Resultado observado:
 
 Gate 4.1 pasa funcionalmente, pero el rendimiento todavía no se acepta. Las 3 llamadas API sugieren overhead adicional de orquestación/auxiliares; debe aislarse antes de continuar con prompts más costosos.
 
+
+
+### Gate 4 - aislamiento de latencia: Hermes sin rules/tools sigue bloqueándose
+
+Se ejecutó una prueba mínima de Hermes sin toolset MikroTik y con `--ignore-rules`:
+
+`Responde únicamente: OK`
+
+Resultado observado:
+
+- tiempo transcurrido antes de interrupción manual: ~87.96 s;
+- no hubo respuesta útil del modelo;
+- el archivo de usage quedó sin métricas de tokens/API;
+- `failed: true`;
+- `failure: KeyboardInterrupt()`.
+
+Conclusión de aislamiento:
+
+- el problema no depende del MCP MikroTik;
+- no depende de las rules/skills cargadas por Hermes;
+- debe investigarse la ruta Hermes -> provider -> Qwen/Basecamp y/o el runtime del modelo.
+
+Siguiente paso: probar el endpoint OpenAI-compatible de Qwen directamente, sin Hermes.
+
