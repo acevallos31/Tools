@@ -79,6 +79,7 @@ class MikroTikSessionManager:
             port=profile.port,
             username=profile.username,
             password=password,
+            host_key_sha256=profile.host_key_sha256,
         )
 
         client.connect()
@@ -260,6 +261,8 @@ class MikroTikSessionManager:
                     "reuse_count": 0,
                     "age_seconds": 0.0,
                     "idle_seconds": 0.0,
+                    "host_key_verified": False,
+                    "host_key_fingerprint": None,
                 }
 
             now = time.monotonic()
@@ -278,6 +281,8 @@ class MikroTikSessionManager:
                     now - session.last_used_at,
                     2,
                 ),
+                "host_key_verified": session.client.host_key_verified,
+                "host_key_fingerprint": session.client.host_key_fingerprint,
             }
 
     def status(self) -> dict:

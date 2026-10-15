@@ -1,0 +1,122 @@
+name: MikroTik RouterOS sandbox
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/mikrotik-granular-tools
+    paths:
+      - "Skills/MikroTik-MCP/**"
+      - ".github/workflows/mikrotik-mcp-integration.yml"
+
+permissions:
+  contents: read
+
+env:
+  ROUTEROS_VERSION: "7.24.4"
+  ROUTEROS_SSH_PORT: "9122"
+
+jobs:
+  routeros-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: Skills/MikroTik-MCP
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            Skills/MikroTik-MCP/requirements.txt
+            Skills/MikroTik-MCP/requirements-dev.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Install package
+        run: python -m pip install -e . --no-deps
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y qemu-system-x86 qemu-utils unzip
+
+      - name: Enable KVM when available
+        run: |
+          if [ -e /dev/kvm ]; then
+            sudo chmod 0666 /dev/kvm
+            echo "KVM available"
+            ls -la /dev/kvm
+          else
+            echo "::warning::/dev/kvm is not available; QEMU will use software emulation."
+          fi
+
+      - name: Download official RouterOS CHR
+        run: |
+          set -euo pipefail
+          ZIP="chr-${ROUTEROS_VERSION}.vdi.zip"
+          VDI="chr-${ROUTEROS_VERSION}.vdi"
+
+          wget -q             "https://download.mikrotik.com/routeros/${ROUTEROS_VERSION}/${ZIP}"             -O "${ZIP}"           || wget -q             "https://cdn.mikrotik.com/routeros/${ROUTEROS_VERSION}/${ZIP}"             -O "${ZIP}"
+
+          unzip -q "${ZIP}"
+          rm -f "${ZIP}"
+          test -s "${VDI}"
+          ls -lh "${VDI}"
+
+      - name: Convert CHR image to qcow2
+        run: |
+          set -euo pipefail
+          qemu-img convert             -f vdi             -O qcow2             "chr-${ROUTEROS_VERSION}.vdi"             "chr-${ROUTEROS_VERSION}.qcow2"
+          rm -f "chr-${ROUTEROS_VERSION}.vdi"
+          ls -lh "chr-${ROUTEROS_VERSION}.qcow2"
+
+      - name: Start RouterOS CHR
+        run: |
+          set -euo pipefail
+
+          KVM_OPTS=()
+          if [ -e /dev/kvm ]; then
+            KVM_OPTS=(-enable-kvm -cpu host)
+          fi
+
+          nohup qemu-system-x86_64             "${KVM_OPTS[@]}"             -m 256             -smp 2             -nographic             -drive "file=chr-${ROUTEROS_VERSION}.qcow2,format=qcow2,if=virtio"             -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${ROUTEROS_SSH_PORT}-:22"             -device virtio-net-pci,netdev=net0             > /tmp/mikrotik-qemu.log 2>&1 &
+
+          echo $! > /tmp/mikrotik-qemu.pid
+          echo "QEMU PID: $(cat /tmp/mikrotik-qemu.pid)"
+
+      - name: RouterOS sandbox integration
+        env:
+          MIKROTIK_SANDBOX_HOST: "127.0.0.1"
+          MIKROTIK_SANDBOX_PORT: "9122"
+          MIKROTIK_SANDBOX_PASSWORD: "mikrotik-sandbox-123"
+          MIKROTIK_SANDBOX_EXPECTED_VERSION: "7.24.4"
+          MIKROTIK_SANDBOX_QEMU_LOG: "/tmp/mikrotik-qemu.log"
+        run: python -m pytest -q -m integration
+
+      - name: RouterOS QEMU diagnostics
+        if: failure()
+        run: |
+          echo "=== QEMU LOG ==="
+          cat /tmp/mikrotik-qemu.log || true
+          echo
+          echo "=== QEMU PROCESS ==="
+          if [ -f /tmp/mikrotik-qemu.pid ]; then
+            ps -fp "$(cat /tmp/mikrotik-qemu.pid)" || true
+          fi
+          echo
+          echo "=== LISTENING PORT ==="
+          ss -ltnp | grep ":${ROUTEROS_SSH_PORT}" || true
+
+      - name: Stop RouterOS CHR
+        if: always()
+        run: |
+          if [ -f /tmp/mikrotik-qemu.pid ]; then
+            kill "$(cat /tmp/mikrotik-qemu.pid)" || true
+          fi

@@ -1,10 +1,12 @@
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from .client import MikroTikClient
+from .app_paths import captures_dir
 from .config import CONFIG
+from .validation import validate_interface_name
 
 
 @dataclass
@@ -27,16 +29,22 @@ def capture_torch(
     client: MikroTikClient,
     interface: Optional[str] = None,
     duration: Optional[int] = None,
+    target: Optional[str] = None,
 ) -> TorchResult:
     """
     Ejecuta MikroTik Torch de forma controlada.
 
     La duración está limitada para evitar capturas excesivamente
     largas cuando la función sea invocada por Hermes/Qwen.
+
+    target es una etiqueta lógica (por ejemplo, el nombre del perfil).
+    Nunca se deriva de client.host para no exponer la dirección de
+    administración en resultados model-facing.
     """
 
     interface = interface or CONFIG.default_interface
     duration = duration or CONFIG.torch_duration
+    logical_target = (target or "direct").strip() or "direct"
 
     # Guardrail: limitar duración de Torch.
     if not 1 <= duration <= 30:
@@ -44,21 +52,7 @@ def capture_torch(
             "La duración de Torch debe estar entre 1 y 30 segundos."
         )
 
-    # Guardrail: evitar inyección de comandos RouterOS
-    # mediante el nombre de la interfaz.
-    allowed = set(
-        "abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "0123456789-_"
-    )
-
-    if not interface or any(
-        char not in allowed
-        for char in interface
-    ):
-        raise ValueError(
-            f"Nombre de interfaz no permitido: {interface!r}"
-        )
+    interface = validate_interface_name(interface)
 
     command = (
         f"/tool torch "
@@ -77,10 +71,10 @@ def capture_torch(
             if result.ok and result.stdout
             else "empty"
         ),
-        target=CONFIG.host,
+        target=logical_target,
         interface=interface,
         duration_seconds=duration,
-        timestamp=datetime.now().isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         command=command,
         stdout=result.stdout,
         stderr=result.stderr,
@@ -99,7 +93,7 @@ def save_raw_capture(
     sin tener que ejecutar una nueva captura.
     """
 
-    directory = directory or CONFIG.raw_dir
+    directory = directory or captures_dir()
 
     directory.mkdir(
         parents=True,
@@ -125,10 +119,64 @@ def save_raw_capture(
     return path
 
 
+def _sanitize_model_report(
+    value,
+    *,
+    management_address: Optional[str],
+):
+    """
+    Redacta la dirección de administración de cualquier dato model-facing.
+
+    La captura RAW local se conserva intacta para auditoría. Esta función solo
+    se aplica al reporte estructurado que se devuelve a MCP/Hermes.
+    """
+
+    sensitive = (management_address or "").strip()
+
+    if not sensitive:
+        return value
+
+    if isinstance(value, str):
+        return value.replace(
+            sensitive,
+            "<management-address>",
+        )
+
+    if isinstance(value, list):
+        return [
+            _sanitize_model_report(
+                item,
+                management_address=sensitive,
+            )
+            for item in value
+        ]
+
+    if isinstance(value, tuple):
+        return tuple(
+            _sanitize_model_report(
+                item,
+                management_address=sensitive,
+            )
+            for item in value
+        )
+
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_model_report(
+                item,
+                management_address=sensitive,
+            )
+            for key, item in value.items()
+        }
+
+    return value
+
+
 def analyze_device_traffic(
     client: MikroTikClient,
     interface: Optional[str] = None,
     duration: Optional[int] = None,
+    target: Optional[str] = None,
 ) -> dict:
     """
     Ejecuta el pipeline completo de análisis de tráfico.
@@ -176,6 +224,7 @@ def analyze_device_traffic(
         client=client,
         interface=interface,
         duration=duration,
+        target=target,
     )
 
     if capture.status != "ok":
@@ -229,8 +278,18 @@ def analyze_device_traffic(
     # 5. Agregar trazabilidad
     # -----------------------------------------------------
 
-    report["capture"]["raw_file"] = str(
-        raw_path
+    report["capture"]["raw_capture_file"] = raw_path.name
+    report["capture"]["evidence_note"] = (
+        "Torch describe flujos y tasas observadas durante esta captura. "
+        "No demuestra por sí solo estabilidad, causalidad ni ausencia de amenazas."
+    )
+
+    # La IP/hostname de administración pertenece a la capa de transporte.
+    # Puede aparecer legítimamente dentro de Torch si existe tráfico hacia el
+    # propio router, pero no debe cruzar la frontera model-facing.
+    report = _sanitize_model_report(
+        report,
+        management_address=getattr(client, "host", None),
     )
 
     return report
