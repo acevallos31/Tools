@@ -62,6 +62,8 @@ SHA256: f2a8404832296b24d8c984c1da1f199076965ab05c57758d8d949d238701120c
 
 El TAR fue inspeccionado y PBS siguió en estado `healthy`. Ni el paquete GHCR ni el TAR contienen el datastore del SSD, las credenciales de PBS o la configuración privada del host.
 
+**Binario personalizado:** copia local en `/opt/pbs/image-backup/proxmox-mail-forward-V2.0-RC1-arm64`, hash SHA256 `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35`; `cmp` contra el original fue correcto. No se ha conservado fuera de la Raspberry Pi. Este binario no está incluido en la imagen Docker exportada como archivo de configuración del host; requiere respaldo independiente.
+
 **Seguridad:** mantener el paquete GHCR privado y retirar las credenciales temporales de Docker con `sudo docker logout ghcr.io` tras publicar. Si el token era de uso temporal, revocarlo desde GitHub cuando no se necesite.
 
 No se ha reconstruido desde cero el sistema usando este directorio; este documento **no garantiza una restauración completa**.
