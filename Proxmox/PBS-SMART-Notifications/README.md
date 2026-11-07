@@ -59,6 +59,8 @@ sudo docker inspect pbs --format 'Running={{.State.Running}} Health={{.State.Hea
 
 ## Copia independiente en Windows
 
-El usuario indicó que transfirió el binario personalizado mediante SCP a su computadora Windows y completó el paso de comprobación SHA256. La salida concreta de `Get-FileHash` no quedó registrada en el historial, por lo que el resultado exacto debe comprobarse contra `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35` antes de considerar la copia Windows verificada documentalmente.
+El usuario transfirió el binario personalizado mediante SCP a su computadora Windows. La captura de `Get-FileHash -Algorithm SHA256` muestra `4664DAB7916BA1955A398BF966FA8862AEE0EDC4411CB8010B1FBC7EF1B58E35`, **idéntico al hash original**. La copia de Windows está verificada documentalmente.
 
 Ruta de destino indicada: `Documents/PBS-Backup/proxmox-mail-forward-V2.0-RC1-arm64`. Evitar publicar el binario en el repositorio público sin revisar procedencia y dependencias.
+
+El 7 de noviembre de 2026 se verificaron con `sha256sum -c` tanto el respaldo `/opt/pbs/image-backup/proxmox-mail-forward-V2.0-RC1-arm64` como la copia temporal `/home/acevallos/proxmox-mail-forward-V2.0-RC1-arm64`. Ambos resultados fueron `OK`; se eliminó **solo** la copia temporal. Después, Docker informó `Running=true Health=healthy`.
