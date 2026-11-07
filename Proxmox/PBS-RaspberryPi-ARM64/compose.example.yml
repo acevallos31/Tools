@@ -8,6 +8,11 @@ services:
   pbs:
     image: dockurr/proxmox-backup@sha256:06ee3733387df837a02ff12f476752465e1cd0373071e778ef07da17751cf18e
     restart: "no"
+    hostname: pbs
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RAWIO
+    stop_grace_period: 2m
     ports:
       - "8007:8007"
     environment:
@@ -16,7 +21,7 @@ services:
     volumes:
       - /opt/pbs/config:/etc/proxmox-backup
       - /mnt/pbs/datastore:/var/lib/proxmox-backup
-      - /opt/pbs/smart-alerts/versions/V2.0-RC1/proxmox-mail-forward:/usr/bin/proxmox-mail-forward
+      - /opt/pbs/smart-alerts/versions/V2.0-RC1/proxmox-mail-forward:/usr/bin/proxmox-mail-forward:ro
     devices:
       - /dev/nvme0:/dev/nvme0:r
       - /dev/nvme0n1:/dev/nvme0n1:r
