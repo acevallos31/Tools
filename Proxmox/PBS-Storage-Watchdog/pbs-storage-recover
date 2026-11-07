@@ -55,6 +55,57 @@ check_storage() {
     echo "Storage checks passed"
 }
 
+recovery_failed() {
+    local reason="$1"
+    local stop_error=0
+    local running
+
+    echo "ERROR: $reason"
+    logger -t pbs-storage-recover "$reason"
+
+    if ! cp -p "$archive" "$LOCK"; then
+        echo "CRITICAL: Cannot restore incident lock"
+        stop_error=1
+    fi
+
+    echo "===== DETENIENDO PBS ====="
+
+    if ! timeout 180 systemctl stop pbs-guard.service; then
+        echo "ERROR: Could not stop PBS Guard"
+        stop_error=1
+    fi
+
+    running=$(timeout 10 docker inspect -f \
+        '{{.State.Running}}' pbs 2>/dev/null) || running="unknown"
+
+    if [ "$running" != "false" ]; then
+        if ! timeout 70 docker stop -t 30 pbs; then
+            echo "ERROR: Could not stop PBS container"
+            stop_error=1
+        fi
+    fi
+
+    running=$(timeout 10 docker inspect -f \
+        '{{.State.Running}}' pbs 2>/dev/null) || running="unknown"
+
+    if [ "$running" != "false" ]; then
+        echo "CRITICAL: PBS stop not confirmed"
+        stop_error=1
+    fi
+
+    if [ "$stop_error" -ne 0 ]; then
+        logger -t pbs-storage-recover \
+            "CRITICAL: Recovery rollback incomplete"
+        echo "CRITICAL: Manual intervention required"
+    else
+        logger -t pbs-storage-recover \
+            "Recovery failed; PBS stopped and lock restored"
+        echo "PBS stopped; critical lock restored"
+    fi
+
+    exit 1
+}
+
 case "${1:-}" in
     --check)
         check_storage
@@ -131,9 +182,7 @@ case "${1:-}" in
         systemctl reset-failed pbs-guard.service
 
         if ! timeout 180 systemctl start pbs-guard.service; then
-            cp -p "$archive" "$LOCK"
-            echo "ERROR: PBS Guard failed; critical lock restored"
-            exit 1
+            recovery_failed "PBS Guard failed"
         fi
 
         healthy=0
@@ -152,9 +201,7 @@ case "${1:-}" in
         done
 
         if [ "$healthy" -ne 1 ]; then
-            cp -p "$archive" "$LOCK"
-            echo "ERROR: PBS not healthy; critical lock restored"
-            exit 1
+            recovery_failed "PBS did not become healthy"
         fi
 
         rm -f "$DIR/recovered.notified"
