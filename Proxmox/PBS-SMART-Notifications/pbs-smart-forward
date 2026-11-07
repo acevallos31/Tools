@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+
+MAIL_FILE="${1:-}"
+
+if [ -z "$MAIL_FILE" ] || [ ! -r "$MAIL_FILE" ]; then
+    echo "ERROR: no se recibio un mensaje SMART valido" >&2
+    exit 1
+fi
+
+if ! /usr/bin/docker inspect -f '{{.State.Running}}' pbs 2>/dev/null | grep -qx true; then
+    echo "ERROR: contenedor PBS no disponible" >&2
+    exit 1
+fi
+
+if ! /usr/bin/docker exec pbs test -x /usr/bin/proxmox-mail-forward; then
+    echo "ERROR: proxmox-mail-forward ARM64 aun no instalado" >&2
+    exit 1
+fi
+
+/usr/bin/docker exec -i pbs \
+    /usr/bin/proxmox-mail-forward < "$MAIL_FILE"
