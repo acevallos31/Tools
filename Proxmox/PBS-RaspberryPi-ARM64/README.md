@@ -33,7 +33,7 @@ Registro de la instalación **no oficial** de PBS observada el 7 de noviembre de
 3. Configuración de servicios systemd, montaje SSD por UUID y smartd, sin información sensible.
 4. Respaldo privado de `/opt/pbs/config`, secretos, certificados y demás archivos necesarios para recuperar la identidad de PBS.
 5. Respaldo independiente del **datastore** con los datos de copias de seguridad.
-6. Copia del código fuente del proyecto comunitario, preservando procedencia/licencia y preferentemente un commit o etiqueta exacta. El digest de imagen no reemplaza el código fuente ni la copia física de la imagen.
+6. **Referencia fija al código fuente comunitario documentada** en [CODIGO-FUENTE.md](CODIGO-FUENTE.md), con commit inspeccionado y licencia MIT. Todavía no se ha demostrado que dicho commit produzca exactamente la imagen instalada; faltan el fork o bundle de Git y una copia privada de la imagen Docker. El digest de imagen no reemplaza el código fuente ni la copia física de la imagen.
 
 ### Notas sobre `compose.example.yml`
 
