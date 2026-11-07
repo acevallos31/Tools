@@ -13,7 +13,18 @@ Esta instalacion **no es el PBS oficial de Proxmox**. Utiliza una imagen comunit
 - Licencia: MIT, https://github.com/dockur/proxmox-backup/blob/cf974879b04c8b71027b1c8b095e8145abd9eb18/license.md
 - Archivo Dockerfile: https://github.com/dockur/proxmox-backup/blob/cf974879b04c8b71027b1c8b095e8145abd9eb18/Dockerfile
 
-**La revision inspeccionada NO ha sido identificada todavia como el commit que produjo la imagen ejecutada en la Raspberry Pi.** El digest del contenedor no identifica por si solo el commit fuente.
+**Revision vinculada a la imagen instalada:** la etiqueta OCI `org.opencontainers.image.revision` reporta exactamente `cf974879b04c8b71027b1c8b095e8145abd9eb18`. Esto identifica la revision declarada por el constructor de la imagen; no constituye una prueba independiente de reproducibilidad binaria.
+
+## Metadatos OCI observados el 7 de noviembre de 2026
+
+- `org.opencontainers.image.revision`: `cf974879b04c8b71027b1c8b095e8145abd9eb18`
+- `org.opencontainers.image.version`: `4.2.8`
+- `org.opencontainers.image.source`: `https://github.com/dockur/proxmox-backup`
+- `org.opencontainers.image.created`: `2026-10-06T10:56:57.809Z`
+- Fecha de construccion Docker: `2026-10-06T11:04:34.553207383Z`
+- SO / arquitectura: `linux/arm64`
+- Tamano reportado por Docker: `654576393` bytes
+- Espacio disponible en NVMe al realizar el inventario: 672 GB
 
 ## Imagen instalada identificada
 
@@ -59,7 +70,7 @@ La imagen Docker y el codigo fuente se deben respaldar por separado de:
 
 ## Pendiente de verificar en el contenedor real
 
-Consultar las etiquetas OCI de la imagen local para determinar si existen campos como `org.opencontainers.image.revision`, `org.opencontainers.image.source`, fecha o version. Si no existen, no atribuir el digest de la imagen al commit fuente inspeccionado.
+Las etiquetas OCI ya se consultaron y vinculan la revision de origen al commit mencionado. Sigue pendiente guardar una copia fisica y verificarla, ademas de los datos privados y el datastore.
 
 ```bash
 sudo docker image inspect dockurr/proxmox-backup:latest --format '{{json .Config.Labels}}'
