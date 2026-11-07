@@ -5,68 +5,171 @@ UUID="004f411f-b58d-4c99-bbe9-d8d55f178fff"
 DEVICE="/dev/disk/by-id/ata-ADATA_SU650_4P1121254567"
 MOUNT="/mnt/pbs"
 DATASTORE="/mnt/pbs/datastore/datastore/.chunks"
-LOCK="/var/lib/pbs-storage-watchdog/critical.lock"
+DIR="/var/lib/pbs-storage-watchdog"
+LOCK="$DIR/critical.lock"
+MUTEX="/run/pbs-storage-watchdog.lock"
 
-if [ "${1:-}" != "--check" ]; then
-    echo "Usage: pbs-storage-recover --check"
-    echo "Recovery mode is not enabled yet."
-    exit 2
-fi
+check_storage() {
+    echo "===== VERIFICANDO SSD ====="
 
-echo "===== VERIFICANDO SSD ====="
+    test -b "$DEVICE" || {
+        echo "ERROR: SSD not found"
+        return 1
+    }
 
-test -b "$DEVICE" || {
-    echo "ERROR: SSD not found"
-    exit 1
+    test "$(findmnt -n -o UUID "$MOUNT")" = "$UUID" || {
+        echo "ERROR: Incorrect mount UUID"
+        return 1
+    }
+
+    test "$(findmnt -n -o FSTYPE "$MOUNT")" = "ext4" || {
+        echo "ERROR: Incorrect filesystem"
+        return 1
+    }
+
+    local source parent actual
+    source=$(findmnt -n -o SOURCE "$MOUNT")
+    parent=$(lsblk -n -o PKNAME "$source" | head -1)
+    actual=$(readlink -f "$DEVICE")
+
+    test -n "$parent" && test "/dev/$parent" = "$actual" || {
+        echo "ERROR: Incorrect storage device"
+        return 1
+    }
+
+    test -d "$DATASTORE" || {
+        echo "ERROR: Datastore not found"
+        return 1
+    }
+
+    echo "===== LECTURA DIRECTA ====="
+
+    timeout 10 dd \
+        if="$DEVICE" \
+        of=/dev/null \
+        bs=4096 \
+        count=1 \
+        iflag=direct \
+        status=none
+
+    echo "Storage checks passed"
 }
 
-test "$(findmnt -n -o UUID "$MOUNT")" = "$UUID" || {
-    echo "ERROR: Incorrect mount UUID"
-    exit 1
-}
+case "${1:-}" in
+    --check)
+        check_storage
 
-test "$(findmnt -n -o FSTYPE "$MOUNT")" = "ext4" || {
-    echo "ERROR: Incorrect filesystem"
-    exit 1
-}
+        if [ -e "$LOCK" ]; then
+            echo "CRITICAL: Manual review required"
+        else
+            echo "OK: No critical lock"
+        fi
 
-SOURCE=$(findmnt -n -o SOURCE "$MOUNT")
-PARENT=$(lsblk -n -o PKNAME "$SOURCE" | head -1)
-ACTUAL=$(readlink -f "$DEVICE")
+        echo "No services were changed"
+        ;;
 
-test -n "$PARENT" || {
-    echo "ERROR: Cannot identify mount device"
-    exit 1
-}
+    --recover)
+        test "$(id -u)" -eq 0 || {
+            echo "ERROR: Root privileges required"
+            exit 1
+        }
 
-test "/dev/$PARENT" = "$ACTUAL" || {
-    echo "ERROR: Mount does not belong to expected SSD"
-    exit 1
-}
+        exec 9>"$MUTEX"
+        flock -w 15 9 || {
+            echo "ERROR: Watchdog is busy"
+            exit 1
+        }
 
-test -d "$DATASTORE" || {
-    echo "ERROR: Datastore directory not found"
-    exit 1
-}
+        if [ ! -f "$LOCK" ]; then
+            echo "ERROR: No critical incident to recover"
+            exit 1
+        fi
 
-echo "===== PROBANDO LECTURA DIRECTA ====="
+        check_storage
 
-timeout 10 dd \
-    if="$DEVICE" \
-    of=/dev/null \
-    bs=4096 \
-    count=1 \
-    iflag=direct \
-    status=none
+        if systemctl is-active --quiet pbs-guard.service; then
+            echo "ERROR: PBS Guard is already active"
+            exit 1
+        fi
 
-echo "===== ESTADO DEL BLOQUEO ====="
+        if [ "$(docker inspect -f '{{.State.Running}}' pbs)" != "false" ]; then
+            echo "ERROR: PBS is already running"
+            exit 1
+        fi
 
-if [ -e "$LOCK" ]; then
-    echo "CRITICAL: Manual review required"
-else
-    echo "OK: No critical lock"
-fi
+        echo "===== CONFIRMACION MANUAL ====="
+        echo "Review SSD health and kernel logs before continuing."
+        echo "Type RECOVER-PBS to unlock and start PBS."
 
-echo "===== RESULTADO ====="
-echo "SSD and datastore basic checks passed"
-echo "No services were changed"
+        test -r /dev/tty || {
+            echo "ERROR: Interactive terminal required"
+            exit 1
+        }
+
+        read -r answer < /dev/tty
+
+        if [ "$answer" != "RECOVER-PBS" ]; then
+            echo "Recovery cancelled"
+            exit 1
+        fi
+
+        check_storage
+
+        stamp=$(date -u +%Y%m%dT%H%M%SZ)
+        archive="$DIR/critical-$stamp.lock"
+
+        if [ -e "$archive" ]; then
+            echo "ERROR: Incident archive already exists"
+            exit 1
+        fi
+
+        cp -p "$LOCK" "$archive"
+        rm -f "$LOCK"
+
+        echo "===== INICIANDO PBS GUARD ====="
+
+        systemctl reset-failed pbs-guard.service
+
+        if ! timeout 180 systemctl start pbs-guard.service; then
+            cp -p "$archive" "$LOCK"
+            echo "ERROR: PBS Guard failed; critical lock restored"
+            exit 1
+        fi
+
+        healthy=0
+
+        for i in $(seq 1 30); do
+            status=$(docker inspect -f \
+                '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' \
+                pbs 2>/dev/null || true)
+
+            if [ "$status" = "healthy" ]; then
+                healthy=1
+                break
+            fi
+
+            sleep 2
+        done
+
+        if [ "$healthy" -ne 1 ]; then
+            cp -p "$archive" "$LOCK"
+            echo "ERROR: PBS not healthy; critical lock restored"
+            exit 1
+        fi
+
+        rm -f "$DIR/recovered.notified"
+        rm -f /run/pbs-storage-watchdog.fail
+
+        logger -t pbs-storage-recover \
+            "Manual PBS recovery completed; incident archived"
+
+        echo "===== RECUPERACION COMPLETADA ====="
+        echo "PBS is healthy"
+        echo "Incident archived: $archive"
+        ;;
+
+    *)
+        echo "Usage: pbs-storage-recover --check|--recover"
+        exit 2
+        ;;
+esac
