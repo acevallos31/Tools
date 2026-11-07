@@ -39,7 +39,7 @@ Registro de la instalación **no oficial** de PBS observada el 7 de noviembre de
 
 - La plantilla requiere definir `PBS_PASSWORD` por un medio privado antes de utilizarla; **no incluir el valor en Git**.
 - La variable `TZ` tiene como valor predeterminado `America/Tegucigalpa`, pero el valor exacto de la instalación activa no fue leído.
-- Los dispositivos están incluidos con sufijo de acceso `:r` como hipótesis de mínimos permisos; **sus modos de acceso reales, otras opciones de ejecución y ajustes especiales quedan pendientes de confirmar**.
+- Los tres dispositivos se verificaron con acceso `:r`. El montaje del binario personalizado se confirmó como solo lectura. Se verificaron también `hostname: pbs`, capacidades `SYS_ADMIN` y `SYS_RAWIO`, y `stop_grace_period: 2m`. Los demás parámetros no explicitados por Compose mantienen sus valores predeterminados; antes de usar la plantilla debe contrastarse con el Compose original.
 - La referencia por digest se tomó del inventario de la imagen local, pero su disponibilidad remota y compatibilidad con una reinstalación no están verificadas. No ejecutar la plantilla sobre el servicio actual.
 - El contenedor debe estar protegido por `pbs-guard.service` y el montaje del SSD validado antes del arranque.
 
