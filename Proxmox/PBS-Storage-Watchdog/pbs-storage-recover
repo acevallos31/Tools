@@ -1,0 +1,72 @@
+#!/bin/bash
+set -euo pipefail
+
+UUID="004f411f-b58d-4c99-bbe9-d8d55f178fff"
+DEVICE="/dev/disk/by-id/ata-ADATA_SU650_4P1121254567"
+MOUNT="/mnt/pbs"
+DATASTORE="/mnt/pbs/datastore/datastore/.chunks"
+LOCK="/var/lib/pbs-storage-watchdog/critical.lock"
+
+if [ "${1:-}" != "--check" ]; then
+    echo "Usage: pbs-storage-recover --check"
+    echo "Recovery mode is not enabled yet."
+    exit 2
+fi
+
+echo "===== VERIFICANDO SSD ====="
+
+test -b "$DEVICE" || {
+    echo "ERROR: SSD not found"
+    exit 1
+}
+
+test "$(findmnt -n -o UUID "$MOUNT")" = "$UUID" || {
+    echo "ERROR: Incorrect mount UUID"
+    exit 1
+}
+
+test "$(findmnt -n -o FSTYPE "$MOUNT")" = "ext4" || {
+    echo "ERROR: Incorrect filesystem"
+    exit 1
+}
+
+SOURCE=$(findmnt -n -o SOURCE "$MOUNT")
+PARENT=$(lsblk -n -o PKNAME "$SOURCE" | head -1)
+ACTUAL=$(readlink -f "$DEVICE")
+
+test -n "$PARENT" || {
+    echo "ERROR: Cannot identify mount device"
+    exit 1
+}
+
+test "/dev/$PARENT" = "$ACTUAL" || {
+    echo "ERROR: Mount does not belong to expected SSD"
+    exit 1
+}
+
+test -d "$DATASTORE" || {
+    echo "ERROR: Datastore directory not found"
+    exit 1
+}
+
+echo "===== PROBANDO LECTURA DIRECTA ====="
+
+timeout 10 dd \
+    if="$DEVICE" \
+    of=/dev/null \
+    bs=4096 \
+    count=1 \
+    iflag=direct \
+    status=none
+
+echo "===== ESTADO DEL BLOQUEO ====="
+
+if [ -e "$LOCK" ]; then
+    echo "CRITICAL: Manual review required"
+else
+    echo "OK: No critical lock"
+fi
+
+echo "===== RESULTADO ====="
+echo "SSD and datastore basic checks passed"
+echo "No services were changed"
