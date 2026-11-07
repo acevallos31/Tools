@@ -22,7 +22,7 @@ Documentación del sistema personalizado de alertas SMART para PBS no oficial AR
 - `/etc/smartd.conf` y configuración SMART del host, si contiene datos relevantes: requiere revisión y saneamiento.
 - La configuración SMTP real de PBS, certificados, credenciales, `notifications-priv.cfg` y el archivo SQLite **no deben publicarse**.
 
-El binario activo V2.0-RC1 se identifica como ELF de 64 bits para ARM aarch64, enlazado dinámicamente, no despojado de símbolos y con Build ID SHA1 `ef1d7ff728463dce64d414a2c82bc6d4359dee94`. Este ejecutable no ha sido copiado al repositorio.
+El binario activo V2.0-RC1 se identifica como ELF de 64 bits para ARM aarch64, enlazado dinámicamente, no despojado de símbolos y con Build ID SHA1 `ef1d7ff728463dce64d414a2c82bc6d4359dee94`. Este ejecutable no ha sido copiado al repositorio. El 7 de noviembre de 2026 se creó una copia local en `/opt/pbs/image-backup/proxmox-mail-forward-V2.0-RC1-arm64`; `cmp` confirmó identidad con el original, con SHA256 `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35`. La copia está en el mismo NVMe que la fuente: **todavía falta una copia externa privada**.
 
 Para respaldar el ejecutable sin publicar un binario opaco se recomienda recuperar su código fuente y proceso de compilación o guardar el artefacto en un repositorio privado con procedencia y versión verificadas.
 
