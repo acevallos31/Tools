@@ -28,12 +28,20 @@ Registro de la instalación **no oficial** de PBS observada el 7 de noviembre de
 
 ## Qué falta para una copia completa y reproducible
 
-1. Copia **saneada** de `/opt/pbs/compose.yml`. No publicar el original: previamente contenía una variable `PASSWORD`.
-2. Código completo de `pbs-smart-queue` y código fuente / construcción reproducible del reenviador modificado.
+1. **Plantilla provisional incorporada:** `compose.example.yml`, construida con los montajes, dispositivos, puerto, imagen y nombres de variables identificados. **Todavía falta comparar con todas las opciones del Compose real.** No publicar el original: previamente contenía una variable `PASSWORD`.
+2. **Cola SMART y adaptadores de texto ya respaldados** en `PBS-SMART-Notifications`; continúa pendiente el código fuente / construcción reproducible del reenviador binario modificado.
 3. Configuración de servicios systemd, montaje SSD por UUID y smartd, sin información sensible.
 4. Respaldo privado de `/opt/pbs/config`, secretos, certificados y demás archivos necesarios para recuperar la identidad de PBS.
 5. Respaldo independiente del **datastore** con los datos de copias de seguridad.
 6. Copia del código fuente del proyecto comunitario, preservando procedencia/licencia y preferentemente un commit o etiqueta exacta. El digest de imagen no reemplaza el código fuente ni la copia física de la imagen.
+
+### Notas sobre `compose.example.yml`
+
+- La plantilla requiere definir `PBS_PASSWORD` por un medio privado antes de utilizarla; **no incluir el valor en Git**.
+- La variable `TZ` tiene como valor predeterminado `America/Tegucigalpa`, pero el valor exacto de la instalación activa no fue leído.
+- Los dispositivos están incluidos con sufijo de acceso `:r` como hipótesis de mínimos permisos; **sus modos de acceso reales, otras opciones de ejecución y ajustes especiales quedan pendientes de confirmar**.
+- La referencia por digest se tomó del inventario de la imagen local, pero su disponibilidad remota y compatibilidad con una reinstalación no están verificadas. No ejecutar la plantilla sobre el servicio actual.
+- El contenedor debe estar protegido por `pbs-guard.service` y el montaje del SSD validado antes del arranque.
 
 No se ha reconstruido desde cero el sistema usando este directorio; este documento **no garantiza una restauración completa**.
 
