@@ -43,6 +43,27 @@ Registro de la instalación **no oficial** de PBS observada el 7 de noviembre de
 - La referencia por digest se tomó del inventario de la imagen local, pero su disponibilidad remota y compatibilidad con una reinstalación no están verificadas. No ejecutar la plantilla sobre el servicio actual.
 - El contenedor debe estar protegido por `pbs-guard.service` y el montaje del SSD validado antes del arranque.
 
+## Copia privada de la imagen en GHCR
+
+El 7 de noviembre de 2026 se etiquetó la **misma imagen local** (ID `sha256:a0891cf788786ab2721995bf790efcd727aff1b141411f79ac385062541c2346`) con:
+
+```text
+ghcr.io/acevallos31/pbs-arm64:4.2.8
+```
+
+El usuario reportó haber finalizado el `docker push` y **confirmó desde GitHub que el paquete es privado**. El digest remoto resultante del push todavía no se ha capturado ni contrastado con un `pull` de prueba; por tanto, el respaldo remoto está pendiente de verificación de descarga/restauración.
+
+La exportación local se conserva en la Raspberry Pi:
+
+```text
+/opt/pbs/image-backup/pbs-arm64-4.2.8-20261006.tar
+SHA256: f2a8404832296b24d8c984c1da1f199076965ab05c57758d8d949d238701120c
+```
+
+El TAR fue inspeccionado y PBS siguió en estado `healthy`. Ni el paquete GHCR ni el TAR contienen el datastore del SSD, las credenciales de PBS o la configuración privada del host.
+
+**Seguridad:** mantener el paquete GHCR privado y retirar las credenciales temporales de Docker con `sudo docker logout ghcr.io` tras publicar. Si el token era de uso temporal, revocarlo desde GitHub cuando no se necesite.
+
 No se ha reconstruido desde cero el sistema usando este directorio; este documento **no garantiza una restauración completa**.
 
 ## Verificación
