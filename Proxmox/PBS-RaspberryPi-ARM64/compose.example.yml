@@ -1,0 +1,23 @@
+# Plantilla parcial derivada del inventario de la Raspberry Pi (2026-11-07).
+# NO reemplazar el compose activo sin comparar todas las opciones.
+# Los secretos nunca deben subirse al repositorio.
+#
+# Para restaurar la imagen instalada, validar el digest y su disponibilidad.
+# El tag latest puede cambiar; esta plantilla fija el digest observado.
+services:
+  pbs:
+    image: dockurr/proxmox-backup@sha256:06ee3733387df837a02ff12f476752465e1cd0373071e778ef07da17751cf18e
+    restart: "no"
+    ports:
+      - "8007:8007"
+    environment:
+      PASSWORD: "${PBS_PASSWORD:?Define PBS_PASSWORD de forma privada}"
+      TZ: "${TZ:-America/Tegucigalpa}"
+    volumes:
+      - /opt/pbs/config:/etc/proxmox-backup
+      - /mnt/pbs/datastore:/var/lib/proxmox-backup
+      - /opt/pbs/smart-alerts/versions/V2.0-RC1/proxmox-mail-forward:/usr/bin/proxmox-mail-forward
+    devices:
+      - /dev/nvme0:/dev/nvme0:r
+      - /dev/nvme0n1:/dev/nvme0n1:r
+      - /dev/disk/by-id/ata-ADATA_SU650_4P1121254567:/dev/sda:r
