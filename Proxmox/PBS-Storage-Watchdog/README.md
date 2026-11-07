@@ -20,6 +20,7 @@ La protección pretende evitar que PBS se inicie sin su datastore y detectar su 
 | `pbs-storage-watchdog.timer` | `/etc/systemd/system/pbs-storage-watchdog.timer` | Programa comprobaciones aproximadamente cada minuto |
 | `10-incident-lock.conf` | `/etc/systemd/system/pbs-guard.service.d/10-incident-lock.conf` | Bloquea el arranque protegido si existe `critical.lock` |
 | `10-timeout.conf` | `/etc/systemd/system/pbs-storage-watchdog.service.d/10-timeout.conf` | Amplía el tiempo máximo del watchdog a 360 segundos |
+| `pbs-storage-recover` | `/usr/local/sbin/pbs-storage-recover` | Diagnóstico de lectura del SSD con `--check` (sin desbloquear ni arrancar PBS) |
 
 El script verifica el UUID del montaje, el enlace persistente `/dev/disk/by-id`, la presencia del directorio `.chunks` y un `stat` con tiempo de espera.
 
@@ -123,3 +124,13 @@ El directorio `/var/lib/pbs-storage-watchdog` fue creado como `root:root` con pe
 
 ---
 Documentación del laboratorio Raspberry Pi / Proxmox Backup Server. Su instalación en otros entornos requiere revisar las rutas, identificadores y mecanismos de recuperación.
+
+## 11. Diagnóstico previo a recuperación
+
+Se instaló `pbs-storage-recover --check` y se verificó en condiciones normales: comprueba el dispositivo persistente, UUID, tipo de sistema de archivos, origen real del montaje, directorio `.chunks` y una lectura directa de 4096 bytes. También informa si existe `critical.lock`.
+
+```bash
+sudo /usr/local/sbin/pbs-storage-recover --check
+```
+
+**El modo `--recover` no está implementado.** La lectura directa es una comprobación básica, no certifica la integridad total del SSD o de los respaldos. Ninguna operación de desbloqueo o reinicio se debe automatizar sin revisión administrativa.
