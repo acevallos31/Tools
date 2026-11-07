@@ -1,0 +1,18 @@
+[Unit]
+Description=Protected Proxmox Backup Server Docker container
+Requires=docker.service mnt-pbs.mount
+BindsTo=mnt-pbs.mount
+After=docker.service mnt-pbs.mount
+RequiresMountsFor=/mnt/pbs/datastore
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sh -c 'test "$(findmnt -n -o UUID /mnt/pbs)" = "004f411f-b58d-4c99-bbe9-d8d55f178fff"'
+ExecStartPre=/usr/bin/test -d /mnt/pbs/datastore/datastore/.chunks
+ExecStart=/bin/sh -c '/usr/bin/docker inspect -f "{{.State.Running}}" pbs | grep -qx true || /usr/bin/docker start pbs'
+ExecStop=-/usr/bin/docker stop -t 120 pbs
+TimeoutStopSec=150
+
+[Install]
+WantedBy=multi-user.target
