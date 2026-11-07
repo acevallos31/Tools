@@ -20,7 +20,7 @@ La protección pretende evitar que PBS se inicie sin su datastore y detectar su 
 | `pbs-storage-watchdog.timer` | `/etc/systemd/system/pbs-storage-watchdog.timer` | Programa comprobaciones aproximadamente cada minuto |
 | `10-incident-lock.conf` | `/etc/systemd/system/pbs-guard.service.d/10-incident-lock.conf` | Bloquea el arranque protegido si existe `critical.lock` |
 | `10-timeout.conf` | `/etc/systemd/system/pbs-storage-watchdog.service.d/10-timeout.conf` | Amplía el tiempo máximo del watchdog a 360 segundos |
-| `pbs-storage-recover` | `/usr/local/sbin/pbs-storage-recover` | Diagnóstico de lectura del SSD con `--check` (sin desbloquear ni arrancar PBS) |
+| `pbs-storage-recover` | `/usr/local/sbin/pbs-storage-recover` | Diagnóstico `--check` y recuperación supervisada `--recover` (ruta de fallo todavía no probada) |
 
 El script verifica el UUID del montaje, el enlace persistente `/dev/disk/by-id`, la presencia del directorio `.chunks` y un `stat` con tiempo de espera.
 
@@ -120,7 +120,7 @@ Las notificaciones habituales de copias de seguridad de Proxmox/PBS y el sistema
 
 El directorio `/var/lib/pbs-storage-watchdog` fue creado como `root:root` con permisos `700` sobre el NVMe raíz (`/dev/nvme0n1p2`). Se añadieron los dos *drop-ins* de systemd incluidos en esta carpeta y se instaló la lógica persistente del watchdog. Con el SSD disponible se verificó sintaxis válida, temporizadores activos, PBS `healthy` y directorio sin bloqueos críticos.
 
-**Pendiente:** prueba controlada sin interrumpir servicios que confirme la lógica de incidente, la persistencia real tras reinicios, los envíos de alarma bajo fallo y la liberación manual segura. Los archivos de este PR son copia de referencia; publicarlos aquí no los despliega automáticamente a la Raspberry Pi.
+**Pendiente:** prueba controlada sin interrumpir servicios que confirme la lógica de incidente, la persistencia real tras reinicios, los envíos de alarma bajo fallo y la liberación manual segura. La rama de recuperación supervisada solo se ha probado hasta su rechazo sin incidente. Los archivos de este PR son copia de referencia; publicarlos aquí no los despliega automáticamente a la Raspberry Pi.
 
 ---
 Documentación del laboratorio Raspberry Pi / Proxmox Backup Server. Su instalación en otros entornos requiere revisar las rutas, identificadores y mecanismos de recuperación.
@@ -133,4 +133,6 @@ Se instaló `pbs-storage-recover --check` y se verificó en condiciones normales
 sudo /usr/local/sbin/pbs-storage-recover --check
 ```
 
-**El modo `--recover` no está implementado.** La lectura directa es una comprobación básica, no certifica la integridad total del SSD o de los respaldos. Ninguna operación de desbloqueo o reinicio se debe automatizar sin revisión administrativa.
+**El modo `--recover` ya está instalado, pero no se ha ensayado con un incidente crítico real ni simulado.** Se verificó que, sin `critical.lock`, responde `ERROR: No critical incident to recover` con código 1, y deja PBS activo y sin cambios. Con incidente crítico exige root, bloqueo de concurrencia, SSD validado, PBS detenido, confirmación interactiva `RECOVER-PBS`, archivo de incidente archivado y arranque mediante `pbs-guard.service`. La lectura directa es una comprobación básica, no certifica la integridad total del SSD ni de los respaldos.
+
+**Advertencia pendiente:** si el arranque falla o PBS no se vuelve `healthy`, la versión actual restaura `critical.lock`, pero puede dejar un contenedor iniciado o un servicio activo. Antes de utilizar `--recover` en un incidente real, se debe corregir y verificar la parada de PBS cuando falle la comprobación de salud; no se debe asumir que restaurar el archivo por sí solo detiene un contenedor.
