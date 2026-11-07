@@ -8,7 +8,8 @@ DEVICE="/dev/disk/by-id/ata-ADATA_SU650_4P1121254567"
 DATASTORE="/mnt/pbs/datastore/datastore/.chunks"
 QUEUE="/opt/pbs/smart-alerts/pbs-smart-queue"
 STATE="/run/pbs-storage-watchdog.fail"
-CRITICAL="/run/pbs-storage-watchdog.critical"
+CRITICAL="/var/lib/pbs-storage-watchdog/critical.lock"
+RECOVERED="/var/lib/pbs-storage-watchdog/recovered.notified"
 LOCK="/run/pbs-storage-watchdog.lock"
 TAG="pbs-storage-watchdog"
 
@@ -67,16 +68,29 @@ check_storage() {
 }
 
 if check_storage; then
+    if [ -e "$CRITICAL" ]; then
+        if [ ! -e "$RECOVERED" ]; then
+            log "Storage recovered; manual PBS review required"
+            notify "RECOVERED" \
+              "Storage is accessible. Critical lock remains active."
+            touch "$RECOVERED"
+        fi
+        rm -f "$STATE"
+        exit 0
+    fi
+
+    rm -f "$RECOVERED"
+
     if [ -e "$STATE" ]; then
         log "Storage available again"
         notify "RECOVERED" \
-          "The storage is accessible again. Check PBS before restarting."
-        rm -f "$STATE" "$CRITICAL"
+          "Storage recovered before critical shutdown."
+        rm -f "$STATE"
     fi
     exit 0
 fi
 
-if [ ! -e "$STATE" ]; then
+if [ ! -e "$STATE" ] && [ ! -e "$CRITICAL" ]; then
     touch "$STATE"
     log "WARNING: PBS storage check failed"
     notify "WARNING" \
@@ -86,9 +100,9 @@ fi
 
 if [ ! -e "$CRITICAL" ]; then
     log "CRITICAL: PBS storage unavailable"
+    touch "$CRITICAL"
     notify "CRITICAL" \
       "Storage failed two consecutive checks. PBS will be stopped."
-    touch "$CRITICAL"
 fi
 
 if systemctl is-active --quiet pbs-guard.service; then
