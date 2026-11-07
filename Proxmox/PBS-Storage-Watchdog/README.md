@@ -18,6 +18,8 @@ La protección pretende evitar que PBS se inicie sin su datastore y detectar su 
 | `pbs-guard.service` | `/etc/systemd/system/pbs-guard.service` | Comprueba el montaje antes de permitir el arranque del contenedor |
 | `pbs-storage-watchdog.service` | `/etc/systemd/system/pbs-storage-watchdog.service` | Ejecuta el watchdog mediante systemd |
 | `pbs-storage-watchdog.timer` | `/etc/systemd/system/pbs-storage-watchdog.timer` | Programa comprobaciones aproximadamente cada minuto |
+| `10-incident-lock.conf` | `/etc/systemd/system/pbs-guard.service.d/10-incident-lock.conf` | Bloquea el arranque protegido si existe `critical.lock` |
+| `10-timeout.conf` | `/etc/systemd/system/pbs-storage-watchdog.service.d/10-timeout.conf` | Amplía el tiempo máximo del watchdog a 360 segundos |
 
 El script verifica el UUID del montaje, el enlace persistente `/dev/disk/by-id`, la presencia del directorio `.chunks` y un `stat` con tiempo de espera.
 
@@ -26,8 +28,8 @@ El script verifica el UUID del montaje, el enlace persistente `/dev/disk/by-id`,
 1. **Almacenamiento disponible:** el watchdog termina sin alterar PBS.
 2. **Primera comprobación fallida — WARNING:** registra el problema e intenta encolar un correo preventivo.
 3. **Segunda comprobación fallida — CRITICAL:** registra y encola la alerta crítica; intenta detener `pbs-guard.service` y el contenedor Docker `pbs`.
-4. **Falla persistente:** utiliza archivos de estado para evitar repetir la alerta crítica en cada ciclo.
-5. **Almacenamiento nuevamente disponible — RECOVERED:** encola un aviso de recuperación del **SSD**, elimina los indicadores de fallo y **no inicia PBS automáticamente**.
+4. **Falla persistente o reinicio de la Raspberry Pi:** conserva el bloqueo crítico en el NVMe para impedir el arranque mediante `pbs-guard.service` hasta una revisión manual.
+5. **Almacenamiento nuevamente disponible — RECOVERED:** encola un aviso de recuperación del **SSD** una sola vez mediante `recovered.notified`, pero **no elimina `critical.lock` ni inicia PBS automáticamente**.
 
 La recuperación del montaje no equivale a la recuperación del servicio PBS.
 
@@ -92,7 +94,7 @@ Para revisar los avisos pendientes de correo, el comando `status` de la cola sol
 
 - **No se ha probado la ruta de fallo:** las comprobaciones realizadas corresponden a operación normal; no se ha retirado el SSD ni simulado su pérdida.
 - **Posible lectura desde caché:** el comando `stat` puede responder utilizando metadatos en memoria aun cuando el disco físico haya dejado de responder. No sustituye una prueba real de entrada/salida.
-- **Estado no persistente:** los indicadores de incidente se almacenan actualmente en `/run` y desaparecen después de reiniciar la Raspberry Pi. La persistencia entre reinicios está pendiente de mejora.
+- **Estado parcialmente persistente:** `critical.lock` y `recovered.notified` permanecen en `/var/lib/pbs-storage-watchdog` (NVMe); el marcador del primer fallo continúa en `/run` y se reinicia al arrancar. No existe todavía un procedimiento automatizado y validado para levantar el bloqueo.
 - **Correo dependiente de PBS:** la cola SQLite guarda las alertas, pero las entrega a través del propio contenedor PBS. Al detenerse PBS, un correo CRITICAL puede quedar pendiente hasta que se recupere manualmente el servicio.
 - **Encolado no implica recepción:** que un correo se haya procesado no garantiza por sí solo que llegó a Gmail.
 - **RECOVERED solo confirma almacenamiento:** no prueba que PBS esté operativo ni que se hayan reanudado los respaldos.
@@ -105,11 +107,19 @@ Para revisar los avisos pendientes de correo, el comando `status` de la cola sol
 
 Después de una falla real, revisar primero alimentación, cableado, adaptador USB-SATA y registros del kernel. Confirmar que la partición correcta está montada, que el UUID coincide y que el datastore se puede leer con seguridad. Revisar los eventos del watchdog y el estado del contenedor **antes** de reactivar `pbs-guard.service`.
 
+**El archivo `critical.lock` debe liberarse únicamente tras confirmar la salud del SSD y el datastore, y siguiendo un procedimiento de recuperación manual aprobado.** No se debe eliminar para forzar un arranque sin investigar el incidente. El bloqueo protege el arranque mediante `pbs-guard.service`, pero un arranque directo con Docker puede eludirlo.
+
 Una vez recuperado PBS, verificar su salud, el estado de la cola de correos y realizar un respaldo de prueba hacia el datastore. No desconectar deliberadamente el SSD en producción para probar las alertas.
 
 ## 9. Relación con otras notificaciones
 
 Las notificaciones habituales de copias de seguridad de Proxmox/PBS y el sistema de alertas SMART existente deben permanecer independientes de este watchdog. La integración reutiliza la cola de correo personalizada; **no requiere modificar las reglas SMART ni la configuración SMTP ya operativa**.
+
+## 10. Estado de la mejora de persistencia (7 de noviembre de 2026)
+
+El directorio `/var/lib/pbs-storage-watchdog` fue creado como `root:root` con permisos `700` sobre el NVMe raíz (`/dev/nvme0n1p2`). Se añadieron los dos *drop-ins* de systemd incluidos en esta carpeta y se instaló la lógica persistente del watchdog. Con el SSD disponible se verificó sintaxis válida, temporizadores activos, PBS `healthy` y directorio sin bloqueos críticos.
+
+**Pendiente:** prueba controlada sin interrumpir servicios que confirme la lógica de incidente, la persistencia real tras reinicios, los envíos de alarma bajo fallo y la liberación manual segura. Los archivos de este PR son copia de referencia; publicarlos aquí no los despliega automáticamente a la Raspberry Pi.
 
 ---
 Documentación del laboratorio Raspberry Pi / Proxmox Backup Server. Su instalación en otros entornos requiere revisar las rutas, identificadores y mecanismos de recuperación.
