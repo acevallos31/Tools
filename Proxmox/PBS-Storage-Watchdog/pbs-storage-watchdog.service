@@ -1,0 +1,8 @@
+[Unit]
+Description=Monitor PBS storage availability
+After=local-fs.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pbs-storage-watchdog
+TimeoutStartSec=100
