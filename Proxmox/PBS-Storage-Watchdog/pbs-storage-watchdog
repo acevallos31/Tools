@@ -1,0 +1,106 @@
+#!/bin/bash
+# PBS storage watchdog, based on the Raspberry Pi deployment (2026-11-06).
+# Review UUID, DEVICE, DATASTORE and QUEUE before installation.
+set -u
+
+UUID="004f411f-b58d-4c99-bbe9-d8d55f178fff"
+DEVICE="/dev/disk/by-id/ata-ADATA_SU650_4P1121254567"
+DATASTORE="/mnt/pbs/datastore/datastore/.chunks"
+QUEUE="/opt/pbs/smart-alerts/pbs-smart-queue"
+STATE="/run/pbs-storage-watchdog.fail"
+CRITICAL="/run/pbs-storage-watchdog.critical"
+LOCK="/run/pbs-storage-watchdog.lock"
+TAG="pbs-storage-watchdog"
+
+exec 9>"$LOCK"
+flock -n 9 || exit 0
+
+log() {
+    logger -t "$TAG" "$1"
+    echo "$1"
+}
+
+notify() {
+    local level="$1"
+    local message="$2"
+    local mailfile
+
+    mailfile=$(mktemp /run/pbs-storage-mail.XXXXXX) || return 1
+    chmod 600 "$mailfile"
+
+    {
+        printf 'From: PBS Storage Monitor <root@localhost>\n'
+        printf 'To: root@localhost\n'
+        printf 'Subject: [PBS STORAGE] %s - raspberrypi\n' "$level"
+        printf 'Content-Type: text/plain; charset=UTF-8\n'
+        printf '\n'
+        printf 'PBS Storage Watchdog\n\n'
+        printf 'Host: raspberrypi\n'
+        printf 'Storage: ADATA SU650\n'
+        printf 'Mount: /mnt/pbs\n'
+        printf 'Event: %s\n' "$level"
+        printf 'Time: %s\n\n' "$(date -Is)"
+        printf '%s\n' "$message"
+    } > "$mailfile"
+
+    if "$QUEUE" enqueue "$mailfile"; then
+        log "Mail queued: $level"
+        systemctl start --no-block pbs-smart-queue.service || true
+    else
+        log "ERROR: Could not queue mail: $level"
+    fi
+
+    rm -f "$mailfile"
+}
+
+check_storage() {
+    local current_uuid
+
+    current_uuid=$(findmnt -n -o UUID /mnt/pbs) || return 1
+
+    [ "$current_uuid" = "$UUID" ] || return 1
+    [ -b "$DEVICE" ] || return 1
+    [ -d "$DATASTORE" ] || return 1
+
+    timeout 5 stat -c '%F' "$DATASTORE" \
+        >/dev/null 2>&1 || return 1
+}
+
+if check_storage; then
+    if [ -e "$STATE" ]; then
+        log "Storage available again"
+        notify "RECOVERED" \
+          "The storage is accessible again. Check PBS before restarting."
+        rm -f "$STATE" "$CRITICAL"
+    fi
+    exit 0
+fi
+
+if [ ! -e "$STATE" ]; then
+    touch "$STATE"
+    log "WARNING: PBS storage check failed"
+    notify "WARNING" \
+      "First storage check failed. A second failure will stop PBS."
+    exit 0
+fi
+
+if [ ! -e "$CRITICAL" ]; then
+    log "CRITICAL: PBS storage unavailable"
+    notify "CRITICAL" \
+      "Storage failed two consecutive checks. PBS will be stopped."
+    touch "$CRITICAL"
+fi
+
+if systemctl is-active --quiet pbs-guard.service; then
+    log "Stopping pbs-guard.service"
+    timeout 150 systemctl stop pbs-guard.service || \
+      log "ERROR: Failed to stop pbs-guard"
+fi
+
+if [ "$(timeout 5 docker inspect -f '{{.State.Running}}' pbs 2>/dev/null)" = "true" ]; then
+    log "Stopping PBS container"
+    timeout 150 docker stop -t 120 pbs || \
+      log "ERROR: Failed to stop PBS"
+fi
+
+exit 0
