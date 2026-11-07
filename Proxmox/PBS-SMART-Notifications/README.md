@@ -56,3 +56,9 @@ sudo docker inspect pbs --format 'Running={{.State.Running}} Health={{.State.Hea
 ```
 
 **Nota de seguridad:** los archivos de esta carpeta no incluyen contraseñas, tokens, certificados ni contenido de mensajes reales. Antes de publicar código adicional, revisar sus secretos por separado sin imprimirlos en la conversación.
+
+## Copia independiente en Windows
+
+El usuario indicó que transfirió el binario personalizado mediante SCP a su computadora Windows y completó el paso de comprobación SHA256. La salida concreta de `Get-FileHash` no quedó registrada en el historial, por lo que el resultado exacto debe comprobarse contra `4664dab7916ba1955a398bf966fa8862aee0edc4411cb8010b1fbc7ef1b58e35` antes de considerar la copia Windows verificada documentalmente.
+
+Ruta de destino indicada: `Documents/PBS-Backup/proxmox-mail-forward-V2.0-RC1-arm64`. Evitar publicar el binario en el repositorio público sin revisar procedencia y dependencias.
