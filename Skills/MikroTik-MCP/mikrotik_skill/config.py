@@ -13,6 +13,7 @@ class MikroTikConfig:
 
     connect_timeout: int = 10
     command_timeout: int = 30
+    keepalive_interval: int = 30
 
     default_interface: str = "ether1"
     torch_duration: int = 5
